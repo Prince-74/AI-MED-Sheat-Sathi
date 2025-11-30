@@ -1,0 +1,116 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* Definition of the design system. All colors, gradients, fonts, etc should be defined here. 
+All colors MUST be HSL.
+*/
+
+@layer base {
+  :root {
+    --background: 0 0% 98%;
+    --foreground: 210 15% 20%;
+
+    --card: 0 0% 100%;
+    --card-foreground: 210 15% 20%;
+
+    --popover: 0 0% 100%;
+    --popover-foreground: 210 15% 20%;
+
+    --primary: 200 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 200 100% 96%;
+    --secondary-foreground: 200 95% 55%;
+
+    --muted: 200 20% 96%;
+    --muted-foreground: 200 10% 50%;
+
+    --accent: 142 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 200 20% 90%;
+    --input: 200 20% 90%;
+    --ring: 200 95% 55%;
+
+    --radius: 1.25rem;
+
+    /* AI-MED specific tokens */
+    --sky-blue: 200 95% 55%;
+    --sky-blue-light: 200 100% 96%;
+    --green-accent: 142 70% 50%;
+    --green-light: 142 60% 95%;
+    --urgency-high: 0 85% 60%;
+    --urgency-medium: 45 100% 55%;
+    --urgency-low: 142 70% 50%;
+    
+    /* Shadows - soft and friendly */
+    --shadow-sm: 0 2px 10px rgba(0, 0, 0, 0.05);
+    --shadow-md: 0 4px 20px rgba(0, 0, 0, 0.08);
+    --shadow-lg: 0 8px 30px rgba(0, 0, 0, 0.12);
+    
+    /* Transitions */
+    --transition-smooth: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  }
+
+  .dark {
+    --background: 210 20% 10%;
+    --foreground: 0 0% 98%;
+
+    --card: 210 20% 14%;
+    --card-foreground: 0 0% 98%;
+
+    --popover: 210 20% 14%;
+    --popover-foreground: 0 0% 98%;
+
+    --primary: 200 95% 55%;
+    --primary-foreground: 0 0% 100%;
+
+    --secondary: 210 20% 20%;
+    --secondary-foreground: 0 0% 98%;
+
+    --muted: 210 20% 20%;
+    --muted-foreground: 210 10% 65%;
+
+    --accent: 142 70% 50%;
+    --accent-foreground: 0 0% 100%;
+
+    --destructive: 0 85% 60%;
+    --destructive-foreground: 0 0% 100%;
+
+    --border: 210 20% 20%;
+    --input: 210 20% 20%;
+    --ring: 200 95% 55%;
+  }
+}
+
+@layer base {
+  * {
+    @apply border-border;
+  }
+
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+  }
+  
+  h1, h2, h3, h4, h5, h6 {
+    @apply font-semibold;
+  }
+}
+
+@layer utilities {
+  .shadow-card {
+    box-shadow: var(--shadow-sm);
+  }
+  
+  .shadow-card-hover {
+    box-shadow: var(--shadow-md);
+  }
+  
+  .transition-smooth {
+    transition: var(--transition-smooth);
+  }
+}
