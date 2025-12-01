@@ -5,7 +5,7 @@
 // or REACT_APP_API_URL=http://localhost:5000   (for CRA)
 
 const BASE_URL =
-  import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || https://ai-med-sheat-sathi.onrender.com
+  import.meta.env.VITE_API_URL || process.env.REACT_APP_API_URL || https://ai-med-sheat-sathi.onrender.com ;
 
 interface ApiResponse<T = unknown> {
   success: boolean;
@@ -13,6 +13,7 @@ interface ApiResponse<T = unknown> {
   data: T;
   meta?: unknown;
 }
+
 
 interface RequestOptions {
   headers?: Record<string, string>;
