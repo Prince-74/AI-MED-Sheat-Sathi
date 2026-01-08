@@ -1,4 +1,4 @@
-# HealthCare Assistant (Vite + Node)
+# AI-MED HealthCare Assistant 
 
 This repository contains a full-stack health-care assistant web app with a React + Vite frontend and a Node.js/Express backend. The project includes AI-powered report analysis, symptom checking, appointment management, and optional Telegram bot integration.
 
