@@ -61,11 +61,20 @@ const ReportAnalyzer = () => {
 
       if (!res.ok) throw new Error(await res.text());
       const data = await res.json();
-      const savedReport = data?.data?.report;
+      const savedReport = data?.data?.report || data?.data || data?.report;
       if (!savedReport) {
         throw new Error("Unexpected response from server");
       }
-      setAnalysis(savedReport);
+      setAnalysis({
+        ...savedReport,
+        summary:
+          typeof savedReport.summary === "string" && savedReport.summary.trim()
+            ? savedReport.summary
+            : "AI analysis temporarily unavailable. Showing OCR text only.",
+        text: typeof savedReport.text === "string" ? savedReport.text : "",
+        parameters: Array.isArray(savedReport.parameters) ? savedReport.parameters : [],
+        issues: Array.isArray(savedReport.issues) ? savedReport.issues : [],
+      });
       toast.success("Report analyzed and saved");
     } catch (err: any) {
       const message = err?.message || "Analysis failed";
