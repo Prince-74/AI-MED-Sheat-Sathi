@@ -2,7 +2,7 @@ let modulePromise;
 
 const loadModule = () => {
   if (!modulePromise) {
-    modulePromise = import("./analyzer.js");
+    modulePromise = import("./analyzer.mjs");
   }
   return modulePromise;
 };

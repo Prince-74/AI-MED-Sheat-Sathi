@@ -2,7 +2,7 @@
 import "dotenv/config";
 import TelegramBot from "node-telegram-bot-api";
 import fetch from "node-fetch";
-import { analyzeReport } from "./analyzer.js";
+import { analyzeReport } from "./analyzer.mjs";
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {

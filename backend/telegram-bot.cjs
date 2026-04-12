@@ -5,27 +5,25 @@ const analyzer = require('./analyzer.cjs');
 
 const token = process.env.TELEGRAM_BOT_TOKEN;
 if (!token) {
-  // Do not crash server at startup; log and skip bot initialization
-  // so the API remains available even if the token is missing.
-  // eslint-disable-next-line no-console
   console.warn('⚠️  TELEGRAM_BOT_TOKEN is not set. Telegram bot will not start.');
-  return;
-}
+  module.exports = null;
+} else if (global.__AI_MED_TELEGRAM_BOT__) {
+  module.exports = global.__AI_MED_TELEGRAM_BOT__;
+} else {
+  const bot = new TelegramBot(token, { polling: true });
+  global.__AI_MED_TELEGRAM_BOT__ = bot;
 
-const bot = new TelegramBot(token, { polling: true });
-// Log basic status so server logs show bot is active
-bot.getMe()
-  .then((info) => console.log(`🤖 Telegram bot started as @${info.username || info.first_name || 'unknown'}`))
-  .catch(() => console.log('🤖 Telegram bot started'));
+  bot.getMe()
+    .then((info) => console.log(`🤖 Telegram bot started as @${info.username || info.first_name || 'unknown'}`))
+    .catch(() => console.log('🤖 Telegram bot started'));
 
-bot.onText(/\/start/, (msg) => {
-  bot.sendMessage(msg.chat.id, 'Send me a report as a document or photo, and I\'ll analyze it.');
-});
+  bot.onText(/\/start/, (msg) => {
+    bot.sendMessage(msg.chat.id, 'Send me a report as a document or photo, and I\'ll analyze it.');
+  });
 
 async function fetchTelegramFileBuffer(fileId) {
   const file = await bot.getFile(fileId);
   const link = `https://api.telegram.org/file/bot${token}/${file.file_path}`;
-  // Use dynamic import for node-fetch (v3 ESM) in CommonJS
   const nf = await import('node-fetch');
   const res = await nf.default(link);
   if (!res.ok) throw new Error(`Failed to fetch file: ${res.status}`);
@@ -76,9 +74,14 @@ bot.on('photo', async (msg) => {
 });
 
 bot.on('polling_error', (err) => {
-  // eslint-disable-next-line no-console
-  console.error('Telegram polling error:', err?.message || err);
+  const message = err?.message || String(err);
+  console.error('Telegram polling error:', message);
+  if (/409\s+Conflict/i.test(message) || /terminated by other getUpdates request/i.test(message)) {
+    bot.stopPolling()
+      .then(() => console.warn('⚠️  Stopped polling due to Telegram 409 conflict (another bot instance is active).'))
+      .catch(() => {});
+  }
 });
 
-// Export for tests or manual start if needed
-module.exports = bot;
+  module.exports = bot;
+}
