@@ -13,6 +13,7 @@ import AuthError from "./pages/auth/AuthError";
 import Home from "./pages/Dashboard/Home";
 import DoctorDetail from "./pages/DoctorDetail";
 import Pharmacy from "./pages/Pharmacy";
+import Bookings from "./pages/Bookings";
 import Profile from "./pages/Profile";
 import SymptomChecker from "./pages/SymptomChecker";
 import ReportAnalyzer from "./pages/ReportAnalyzer";
@@ -70,7 +71,7 @@ const App = () => (
             path="/bookings"
             element={
               <ProtectedRoute allowedRoles={["patient"]}>
-                <Home />
+                <Bookings />
               </ProtectedRoute>
             }
           />

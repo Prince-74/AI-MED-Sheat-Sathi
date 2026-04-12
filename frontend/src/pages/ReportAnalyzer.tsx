@@ -2,9 +2,10 @@
 import { ArrowLeft, Upload, FileText, Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { Progress } from "@/components/ui/progress";
 import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useRef, useState, useEffect } from "react";
 import { userAuthStore } from "@/store/authStore";
 import { toast } from "sonner";
 
@@ -22,9 +23,17 @@ const ReportAnalyzer = () => {
   const navigate = useNavigate();
   const [analysis, setAnalysis] = useState<SavedReport | null>(null);
   const [loading, setLoading] = useState(false);
+  const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const { token } = userAuthStore();
+  const progressTimerRef = useRef<number | null>(null);
+
+  useEffect(() => {
+    return () => {
+      if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+    };
+  }, []);
 
   const handleChooseFile = () => fileInputRef.current?.click();
 
@@ -35,6 +44,15 @@ const ReportAnalyzer = () => {
     setError(null);
     setAnalysis(null);
     setLoading(true);
+    setProgress(5);
+    // start fake progress until response completes
+    if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
+    progressTimerRef.current = window.setInterval(() => {
+      setProgress((p) => {
+        const next = p + Math.floor(Math.random() * 6) + 2; // +2..+7
+        return next >= 92 ? 92 : next;
+      });
+    }, 700);
 
     try {
       if (!token) {
@@ -75,13 +93,23 @@ const ReportAnalyzer = () => {
         parameters: Array.isArray(savedReport.parameters) ? savedReport.parameters : [],
         issues: Array.isArray(savedReport.issues) ? savedReport.issues : [],
       });
+      // mark progress complete
+      setProgress(100);
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
       toast.success("Report analyzed and saved");
     } catch (err: any) {
       const message = err?.message || "Analysis failed";
       setError(message);
       toast.error(message);
     } finally {
-      setLoading(false);
+      // ensure progress reaches 100 briefly then hide
+      setTimeout(() => {
+        setLoading(false);
+        setProgress(0);
+      }, 600);
       setTimeout(() => {
         if (fileInputRef.current) fileInputRef.current.value = "";
       }, 0);
@@ -166,6 +194,16 @@ const ReportAnalyzer = () => {
             </Button>
           </div>
         </Card>
+
+        {loading && (
+          <Card className="p-4 mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <div className="font-medium">Analyzing report...</div>
+              <div className="text-sm font-medium">{progress}%</div>
+            </div>
+            <Progress value={progress} />
+          </Card>
+        )}
 
         {error && (
           <Card className="p-4 mb-4 border-red-200 bg-red-50">

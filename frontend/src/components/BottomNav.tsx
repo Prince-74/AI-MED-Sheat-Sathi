@@ -11,9 +11,9 @@ const BottomNav = () => {
         { icon: Calendar, label: "Appointments", path: "/doctor/appointments" },
         { icon: User, label: "Profile", path: "/profile" },
       ]
-    : [
+        : [
         { icon: Home, label: "Home", path: "/home" },
-        { icon: Search, label: "Explore", path: "/explore" },
+        { icon: Search, label: "Pharmacy", path: "/pharmacy" },
         { icon: Calendar, label: "Bookings", path: "/bookings" },
         { icon: User, label: "Profile", path: "/profile" },
       ];

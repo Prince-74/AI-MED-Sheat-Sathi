@@ -3,6 +3,8 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import DoctorCard from "@/components/DoctorCard";
+import { useEffect } from "react";
+import { useDoctorStore } from "@/store/doctorStore";
 import BottomNav from "@/components/BottomNav";
 import LanguageSwitcher from "@/components/LanguageSwitcher";
 import { useNavigate } from "react-router-dom";
@@ -20,38 +22,15 @@ const quickActions = [
   
 ] as const;
 
-const doctors = [
-  {
-    id: "1",
-    name: "Dr. Yasmine",
-    specialty: "Cardiologist",
-    image: doctorFemale,
-    rating: 4.8,
-    location: "New York Medical Center",
-    distance: "2.5km",
-  },
-  {
-    id: "2",
-    name: "Dr. Michael",
-    specialty: "Neurologist",
-    image: doctorMale,
-    rating: 4.9,
-    location: "City Health Clinic",
-    distance: "1.8km",
-  },
-  {
-    id: "3",
-    name: "Dr. Sarah",
-    specialty: "Pediatrician",
-    image: doctorFemale,
-    rating: 4.7,
-    location: "Children's Hospital",
-    distance: "3.2km",
-  },
-];
+
 
 const Home = () => {
   const navigate = useNavigate();
+  const { doctors, fetchDoctors, loading } = useDoctorStore();
+
+  useEffect(() => {
+    fetchDoctors().catch(() => {});
+  }, [fetchDoctors]);
 
   return (
     <div className="min-h-screen bg-background pb-24">
@@ -147,13 +126,27 @@ const Home = () => {
         </div>
 
         <div className="space-y-4">
-          {doctors.map((doctor) => (
-            <DoctorCard
-              key={doctor.id}
-              {...doctor}
-              onClick={() => navigate(`/doctor/${doctor.id}`)}
-            />
-          ))}
+          {loading ? (
+            <div className="space-y-2">
+              <div className="h-20 bg-muted rounded" />
+              <div className="h-20 bg-muted rounded" />
+            </div>
+          ) : doctors && doctors.length > 0 ? (
+            doctors.map((d) => (
+              <DoctorCard
+                key={d._id}
+                id={d._id}
+                name={d.name}
+                specialty={d.specialization || d.specialization}
+                image={d.profileImage || doctorMale}
+                rating={4.8}
+                location={d.hospitalInfo?.name || d.hospitalInfo?.city || ""}
+                onClick={() => navigate(`/doctor/${d._id}`)}
+              />
+            ))
+          ) : (
+            <p className="text-sm text-muted-foreground">No doctors found.</p>
+          )}
         </div>
       </div>
 
