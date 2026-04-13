@@ -67,9 +67,9 @@ const BookAppointment = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <AppointmentHeader doctor={doctor} step={1} stepperPosition="right" />
+      <AppointmentHeader doctor={doctor} step={1} />
 
-      <div className="px-4 sm:px-6 mt-10 flex flex-col lg:flex-row gap-6">
+      <div className="px-4 sm:px-6 mt-6 sm:mt-6 flex flex-col lg:flex-row gap-6">
         <div className="w-full lg:w-1/3">
           <Card className="p-6">
             <div className="flex flex-col items-center">

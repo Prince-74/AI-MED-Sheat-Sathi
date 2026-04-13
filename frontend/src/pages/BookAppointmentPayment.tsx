@@ -52,19 +52,19 @@ const BookAppointmentPayment = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <AppointmentHeader doctor={currentDoctor} step={3} stepperPosition="right" />
+      <AppointmentHeader doctor={currentDoctor} step={3} />
 
-      <div className="px-6 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <Card className="p-6">
+      <div className="px-4 sm:px-6 mt-6 sm:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 w-full">
+          <Card className="p-6 w-full">
             <div className="font-semibold">{currentDoctor?.name}</div>
             <div className="text-sm text-muted-foreground">{currentDoctor?.specialization}</div>
             <div className="mt-4 text-sm">Consultation Fee: ₹{currentDoctor?.fees || 0}</div>
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
-          <Card className="p-6">
+        <div className="lg:col-span-2 w-full">
+          <Card className="p-6 w-full">
             <h3 className="font-semibold mb-4">Booking Summary</h3>
             <div className="bg-card p-4 rounded mb-4">
               <div className="flex justify-between"><div className="text-sm">Date & Time</div><div className="text-sm">{slot ? new Date(slot).toLocaleString() : '-'}</div></div>
@@ -79,9 +79,9 @@ const BookAppointmentPayment = () => {
               <div className="text-sm text-muted-foreground">Your payment is protected by 256-bit SSL encryption</div>
             </div>
 
-            <div className="flex gap-2 justify-between">
-              <Button variant="ghost" onClick={() => navigate(-1)}>Back</Button>
-              <Button onClick={handlePayAndBook} disabled={processing} className="bg-green-600">{processing ? 'Processing...' : `Pay ₹${currentDoctor?.fees || 0} & Book`}</Button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+              <Button variant="ghost" onClick={() => navigate(-1)} className="w-full sm:w-auto">Back</Button>
+              <Button onClick={handlePayAndBook} disabled={processing} className="bg-green-600 w-full sm:w-auto">{processing ? 'Processing...' : `Pay ₹${currentDoctor?.fees || 0} & Book`}</Button>
             </div>
           </Card>
         </div>

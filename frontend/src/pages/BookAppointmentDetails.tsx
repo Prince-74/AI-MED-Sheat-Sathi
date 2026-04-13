@@ -25,28 +25,28 @@ const BookAppointmentDetails = () => {
 
   return (
     <div className="min-h-screen bg-background pb-24">
-      <AppointmentHeader doctor={currentDoctor} step={2} stepperPosition="right" />
+      <AppointmentHeader doctor={currentDoctor} step={2} />
 
-      <div className="px-6 mt-10 grid grid-cols-1 lg:grid-cols-3 gap-6">
-        <div className="lg:col-span-1">
-          <Card className="p-6">
+      <div className="px-4 sm:px-6 mt-6 sm:mt-6 grid grid-cols-1 lg:grid-cols-3 gap-6">
+        <div className="lg:col-span-1 w-full">
+          <Card className="p-6 w-full">
             <div className="font-semibold">{currentDoctor?.name}</div>
             <div className="text-sm text-muted-foreground">{currentDoctor?.specialization}</div>
             <div className="mt-4 text-sm">Consultation Fee: ₹{currentDoctor?.fees || 0}</div>
           </Card>
         </div>
 
-        <div className="lg:col-span-2">
-          <Card className="p-6">
+        <div className="lg:col-span-2 w-full">
+          <Card className="p-6 w-full">
             <h3 className="font-semibold mb-3">Selected Slot</h3>
             <div className="text-sm text-muted-foreground mb-6">{slot ? new Date(slot).toLocaleString() : 'No slot selected'}</div>
 
             <h3 className="font-semibold mb-2">Enter Symptoms / Notes</h3>
             <textarea className="w-full p-3 border border-border rounded mb-4" rows={6} value={symptoms} onChange={(e) => setSymptoms(e.target.value)} />
 
-            <div className="flex gap-2 justify-between">
-              <Button variant="ghost" onClick={() => navigate(-1)}>Back</Button>
-              <Button onClick={handleContinue} disabled={!slot}>Continue to Payment</Button>
+            <div className="flex flex-col sm:flex-row gap-2 sm:justify-between">
+              <Button variant="ghost" onClick={() => navigate(-1)} className="w-full sm:w-auto">Back</Button>
+              <Button onClick={handleContinue} disabled={!slot} className="w-full sm:w-auto">Continue to Payment</Button>
             </div>
           </Card>
         </div>
