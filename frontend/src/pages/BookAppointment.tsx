@@ -104,12 +104,12 @@ const BookAppointment = () => {
 
         <div className="w-full lg:flex-1">
           <Card className="p-6 bg-white shadow-lg">
-            <div className="flex gap-6">
-              <div className="w-1/2">
-                <h3 className="font-semibold mb-3">Select Date & Time</h3>
-                <Calendar mode="single" selected={selectedDate} onSelect={(d) => setSelectedDate(d || undefined)} />
-              </div>
-              <div className="flex-1">
+            <div className="flex flex-col md:flex-row gap-6">
+                <div className="w-full md:w-1/2">
+                  <h3 className="font-semibold mb-3">Select Date & Time</h3>
+                  <Calendar mode="single" selected={selectedDate} onSelect={(d) => setSelectedDate(d || undefined)} />
+                </div>
+                <div className="w-full md:flex-1">
                 <div className="flex items-center justify-between mb-3">
                   <h3 className="font-semibold">Available Time Slots</h3>
                   <div className="text-sm text-muted-foreground">{availableSlots.length} slots available</div>
@@ -119,7 +119,7 @@ const BookAppointment = () => {
                 ) : availableSlots.length === 0 ? (
                   <div className="text-sm text-muted-foreground">No slots available for selected day.</div>
                 ) : (
-                  <div className="grid grid-cols-2 gap-3">
+                  <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-2 gap-3">
                     {availableSlots.map((iso) => (
                       <button
                         key={iso}
@@ -132,8 +132,8 @@ const BookAppointment = () => {
                   </div>
                 )}
 
-                <div className="mt-6 flex justify-end">
-                  <Button disabled={!selectedSlot} onClick={handleContinueToDetails} className="bg-primary">Continue</Button>
+                <div className="mt-6 flex">
+                  <Button disabled={!selectedSlot} onClick={handleContinueToDetails} className="bg-primary w-full md:w-auto">Continue</Button>
                 </div>
               </div>
             </div>
