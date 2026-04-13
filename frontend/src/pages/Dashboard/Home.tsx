@@ -16,7 +16,7 @@ const botUsername = import.meta.env.VITE_TELEGRAM_BOT_USERNAME as string | undef
 const quickActions = [
   { icon: Stethoscope, label: "Check Symptoms", path: "/symptom-checker", color: "text-sky-500" },
   { icon: Upload, label: "Upload Report", path: "/report-analyzer", color: "text-green-500" },
-  { icon: Phone, label: "Consult Doctor", path: "/home", color: "text-blue-500" },
+  { icon: Phone, label: "Consult Doctor", path: "/doctors", color: "text-blue-500" },
   { icon: Pill, label: "Find Medicines", path: "/pharmacy", color: "text-purple-500" },
   { icon: FolderOpen, label: "My Records", path: "/health-records", color: "text-orange-500" },
   

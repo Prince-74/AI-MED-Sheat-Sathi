@@ -176,7 +176,7 @@ const DoctorDetail = () => {
           </div>
         )}
 
-        <Button className="w-full" size="lg" disabled={!doctor}>
+        <Button className="w-full" size="lg" disabled={!doctor} onClick={() => doctor && navigate(`/book-appointment/${doctor._id}`)}>
           Book Appointment
         </Button>
       </div>

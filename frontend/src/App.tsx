@@ -13,7 +13,11 @@ import AuthError from "./pages/auth/AuthError";
 import Home from "./pages/Dashboard/Home";
 import DoctorDetail from "./pages/DoctorDetail";
 import Pharmacy from "./pages/Pharmacy";
+import Doctors from "./pages/Doctors";
 import Bookings from "./pages/Bookings";
+import BookAppointment from "./pages/BookAppointment";
+import BookAppointmentDetails from "./pages/BookAppointmentDetails";
+import BookAppointmentPayment from "./pages/BookAppointmentPayment";
 import Profile from "./pages/Profile";
 import SymptomChecker from "./pages/SymptomChecker";
 import ReportAnalyzer from "./pages/ReportAnalyzer";
@@ -57,6 +61,10 @@ const App = () => (
             }
           />
           <Route path="/doctor/:id" element={<DoctorDetail />} />
+          <Route path="/doctors" element={<Doctors />} />
+          <Route path="/book-appointment/:id" element={<BookAppointment />} />
+          <Route path="/book-appointment/:id/details" element={<BookAppointmentDetails />} />
+          <Route path="/book-appointment/:id/payment" element={<BookAppointmentPayment />} />
           <Route path="/explore" element={<Pharmacy />} />
           <Route path="/pharmacy" element={<Pharmacy />} />
           <Route
