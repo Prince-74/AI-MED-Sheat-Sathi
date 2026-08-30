@@ -17,7 +17,7 @@ import {
   Clock,
   AlertCircle,
 } from "lucide-react";
-import { postWithAuth, getWithAuth } from "@/service/httpService";
+import { postWithAuth } from "@/service/httpService";
 import { io as socketIo, Socket } from "socket.io-client";
 
 interface ConsultationTokenData {
@@ -64,21 +64,17 @@ const VideoCall = () => {
         setLoading(true);
         setError(null);
 
-        const response = await postWithAuth<ConsultationTokenData>(
-          `/telehealth/${appointmentId}/join`,
-          {}
-        );
+        const response = await postWithAuth(`/telehealth/${appointmentId}/join`, {});
 
         if (!mounted) return;
-        const data = response.data;
+        const data = response.data as ConsultationTokenData;
         setTokenData(data);
-      } catch (err: any) {
+      } catch (err: unknown) {
         if (!mounted) return;
         const errMsg =
-          err?.response?.data?.message ||
-          err?.response?.data?.error?.message ||
-          err?.message ||
-          "Failed to join consultation room";
+          err instanceof Error
+            ? err.message
+            : "Failed to join consultation room";
         setError(errMsg);
         toast.error(errMsg);
       } finally {
@@ -140,7 +136,7 @@ const VideoCall = () => {
       });
       socket.disconnect();
     };
-  }, [appointmentId, user, tokenData]);
+  }, [appointmentId, user, tokenData, navigate]);
 
   // 3. Call Duration Timer (derived from server startedAt to prevent drift)
   useEffect(() => {
@@ -216,10 +212,12 @@ const VideoCall = () => {
       if (zpInstanceRef.current) {
         try {
           zpInstanceRef.current.destroy();
-        } catch (e) {}
+        } catch (e) {
+          console.error("Failed to destroy Zego UI instance", e);
+        }
       }
     };
-  }, [tokenData]);
+  }, [tokenData, navigate]);
 
   const handleSavePrescription = async (prescription: string, notes: string) => {
     if (!appointmentId) return;
@@ -231,8 +229,9 @@ const VideoCall = () => {
       toast.success("Consultation completed & prescription saved");
       setShowPrescriptionModal(false);
       navigate("/doctor/dashboard");
-    } catch (err: any) {
-      toast.error(err?.message || "Failed to complete consultation");
+    } catch (err: unknown) {
+      const errMsg = err instanceof Error ? err.message : "Failed to complete consultation";
+      toast.error(errMsg);
     }
   };
 

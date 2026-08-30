@@ -1,28 +1,30 @@
 import crypto from "crypto";
 
-export const DEFAULT_ZEGO_APP_ID = 1879308119;
-export const DEFAULT_ZEGO_SERVER_SECRET = "6bead71a81dc89b14db8c8fa9074ee2c";
-
 /**
- * Generates official Zego Token04 for WebRTC authentication
- * @param {Object} params - { appId, userId, secret, effectiveTimeInSeconds, payload }
- * @returns {string} Token04 formatted string starting with "04"
+ * Generates official Zego Token04 for WebRTC authentication.
+ * Secrets must come from environment variables only.
  */
 export function generateZegoToken04({
-  appId = Number(process.env.ZEGO_APP_ID || DEFAULT_ZEGO_APP_ID),
+  appId,
   userId,
-  secret = String(process.env.ZEGO_SERVER_SECRET || DEFAULT_ZEGO_SERVER_SECRET),
-  effectiveTimeInSeconds = 3600, // 1 hour expiration
+  secret,
+  effectiveTimeInSeconds = 3600,
   payload = "",
 }) {
-  if (!appId || typeof appId !== "number") {
+  const resolvedAppId = Number(appId ?? process.env.ZEGO_APP_ID);
+  const resolvedSecret = String(secret ?? process.env.ZEGO_SERVER_SECRET ?? "");
+
+  if (!resolvedAppId || Number.isNaN(resolvedAppId)) {
+    throw new Error("Missing Zego appId. Set ZEGO_APP_ID in your environment.");
+  }
+  if (!resolvedAppId || typeof resolvedAppId !== "number") {
     throw new Error("Invalid or missing Zego appId.");
   }
   if (!userId || typeof userId !== "string") {
     throw new Error("Invalid or missing userId.");
   }
-  if (!secret || typeof secret !== "string" || secret.length !== 32) {
-    throw new Error("Invalid Zego server secret. Expected 32-character string.");
+  if (!resolvedSecret || typeof resolvedSecret !== "string" || resolvedSecret.length !== 32) {
+    throw new Error("Invalid Zego server secret. Set ZEGO_SERVER_SECRET to a valid 32-character secret.");
   }
   if (!effectiveTimeInSeconds || typeof effectiveTimeInSeconds !== "number") {
     throw new Error("Invalid effectiveTimeInSeconds.");
@@ -30,7 +32,7 @@ export function generateZegoToken04({
 
   const createTime = Math.floor(Date.now() / 1000);
   const tokenInfo = {
-    app_id: appId,
+    app_id: resolvedAppId,
     user_id: userId,
     nonce: Math.floor(Math.random() * 2147483647),
     ctime: createTime,
@@ -42,7 +44,7 @@ export function generateZegoToken04({
   const iv = crypto.randomBytes(16);
 
   // 32-character secret key uses AES-256-CBC with utf-8 key buffer
-  const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(secret, "utf8"), iv);
+  const cipher = crypto.createCipheriv("aes-256-cbc", Buffer.from(resolvedSecret, "utf8"), iv);
   cipher.setAutoPadding(true);
   const encrypted = Buffer.concat([cipher.update(plainText, "utf8"), cipher.final()]);
 
@@ -77,8 +79,14 @@ export function generateConsultationToken({
   roomId,
   expirationSeconds = 3600,
 }) {
-  const appId = Number(process.env.ZEGO_APP_ID || DEFAULT_ZEGO_APP_ID);
-  const secret = String(process.env.ZEGO_SERVER_SECRET || DEFAULT_ZEGO_SERVER_SECRET);
+  const appId = Number(process.env.ZEGO_APP_ID);
+  const secret = String(process.env.ZEGO_SERVER_SECRET || "");
+  if (!appId || Number.isNaN(appId)) {
+    throw new Error("Missing Zego appId. Set ZEGO_APP_ID in your environment.");
+  }
+  if (!secret || secret.length !== 32) {
+    throw new Error("Missing Zego server secret. Set ZEGO_SERVER_SECRET to a valid 32-character secret.");
+  }
   const derivedRoomId = roomId || `room_${appointmentId}`;
 
   const payload = JSON.stringify({
