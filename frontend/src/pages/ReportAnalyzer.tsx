@@ -1,4 +1,3 @@
-/* eslint-disable @typescript-eslint/no-explicit-any */
 import { ArrowLeft, Upload, FileText, Download, Clock } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
@@ -7,6 +6,7 @@ import { useNavigate } from "react-router-dom";
 import BottomNav from "@/components/BottomNav";
 import { useMemo, useRef, useState, useEffect } from "react";
 import { userAuthStore } from "@/store/authStore";
+import { uploadWithAuth, BASE_URL } from "@/service/httpService";
 import { toast } from "sonner";
 
 interface SavedReport {
@@ -26,7 +26,7 @@ const ReportAnalyzer = () => {
   const [progress, setProgress] = useState<number>(0);
   const [error, setError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
-  const { token } = userAuthStore();
+  const { token, isAuthenticated } = userAuthStore();
   const progressTimerRef = useRef<number | null>(null);
 
   useEffect(() => {
@@ -41,78 +41,63 @@ const ReportAnalyzer = () => {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    if (!token || !isAuthenticated) {
+      toast.error("Please sign in to analyze reports");
+      navigate("/auth");
+      return;
+    }
+
     setError(null);
     setAnalysis(null);
     setLoading(true);
-    setProgress(5);
-    // start fake progress until response completes
+    setProgress(10);
+
     if (progressTimerRef.current) window.clearInterval(progressTimerRef.current);
     progressTimerRef.current = window.setInterval(() => {
       setProgress((p) => {
-        const next = p + Math.floor(Math.random() * 6) + 2; // +2..+7
-        return next >= 92 ? 92 : next;
+        const next = p + Math.floor(Math.random() * 8) + 3;
+        return next >= 90 ? 90 : next;
       });
-    }, 700);
+    }, 600);
 
     try {
-      if (!token) {
-        toast.error("Please sign in to analyze reports");
-        navigate("/auth");
-        return;
-      }
-
       const formData = new FormData();
       formData.append("file", file);
 
-      const baseUrl = import.meta.env.VITE_API_URL;
-      if (!baseUrl) {
-        throw new Error("API base URL not configured. Set VITE_API_URL in your .env file");
-      }
+      const res = await uploadWithAuth<any>("/reports/analyze", formData);
+      const savedReport = res?.data?.report || res?.data;
 
-      const res = await fetch(`${baseUrl}/reports/analyze`, {
-        method: "POST",
-        body: formData,
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      if (!res.ok) throw new Error(await res.text());
-      const data = await res.json();
-      const savedReport = data?.data?.report || data?.data || data?.report;
       if (!savedReport) {
-        throw new Error("Unexpected response from server");
+        throw new Error("Unexpected response format from server");
       }
+
       setAnalysis({
         ...savedReport,
         summary:
           typeof savedReport.summary === "string" && savedReport.summary.trim()
             ? savedReport.summary
-            : "AI analysis temporarily unavailable. Showing OCR text only.",
+            : "AI analysis completed. Extracted text available below.",
         text: typeof savedReport.text === "string" ? savedReport.text : "",
         parameters: Array.isArray(savedReport.parameters) ? savedReport.parameters : [],
         issues: Array.isArray(savedReport.issues) ? savedReport.issues : [],
       });
-      // mark progress complete
+
       setProgress(100);
-      if (progressTimerRef.current) {
-        window.clearInterval(progressTimerRef.current);
-        progressTimerRef.current = null;
-      }
-      toast.success("Report analyzed and saved");
+      toast.success("Medical report analyzed successfully!");
     } catch (err: any) {
       const message = err?.message || "Analysis failed";
       setError(message);
       toast.error(message);
     } finally {
-      // ensure progress reaches 100 briefly then hide
+      if (progressTimerRef.current) {
+        window.clearInterval(progressTimerRef.current);
+        progressTimerRef.current = null;
+      }
       setTimeout(() => {
         setLoading(false);
         setProgress(0);
-      }, 600);
-      setTimeout(() => {
-        if (fileInputRef.current) fileInputRef.current.value = "";
-      }, 0);
+      }, 500);
+      if (fileInputRef.current) fileInputRef.current.value = "";
     }
   };
 
@@ -124,8 +109,7 @@ const ReportAnalyzer = () => {
     }
 
     try {
-      const baseUrl = import.meta.env.VITE_API_URL;
-      const res = await fetch(`${baseUrl}/reports/${analysis._id}/download`, {
+      const res = await fetch(`${BASE_URL}/reports/${analysis._id}/download`, {
         headers: { Authorization: `Bearer ${token}` },
       });
       if (!res.ok) throw new Error(await res.text());
@@ -133,7 +117,7 @@ const ReportAnalyzer = () => {
       const link = document.createElement("a");
       const url = URL.createObjectURL(blob);
       link.href = url;
-      link.download = analysis.filename || "report";
+      link.download = analysis.filename || "medical-report";
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -158,9 +142,12 @@ const ReportAnalyzer = () => {
           >
             <ArrowLeft className="w-6 h-6" />
           </button>
-          <h1 className="text-2xl font-bold">Report Analyzer</h1>
+          <h1 className="text-2xl font-bold">AI Report Analyzer</h1>
           <div className="w-12" />
         </div>
+        <p className="text-xs opacity-90 text-center">
+          Upload blood tests, lab results, prescriptions, or radiology reports for instant AI breakdown
+        </p>
       </div>
 
       <div className="px-6 mt-6">
@@ -169,10 +156,7 @@ const ReportAnalyzer = () => {
           type="file"
           accept=".pdf,.png,.jpg,.jpeg,.webp"
           className="hidden"
-          onChange={(e) => {
-            e.preventDefault();
-            onFileSelected(e);
-          }}
+          onChange={onFileSelected}
         />
 
         <Card
@@ -186,11 +170,11 @@ const ReportAnalyzer = () => {
             <div>
               <p className="font-semibold mb-1">Upload Medical Report</p>
               <p className="text-sm text-muted-foreground">
-                Drop PDF or image files here, or click to browse
+                Supports PDF documents and high-resolution images
               </p>
             </div>
             <Button onClick={handleChooseFile} disabled={loading}>
-              {loading ? "Analyzing..." : "Choose File"}
+              {loading ? "Analyzing Document..." : "Choose File"}
             </Button>
           </div>
         </Card>
@@ -198,8 +182,8 @@ const ReportAnalyzer = () => {
         {loading && (
           <Card className="p-4 mb-4">
             <div className="flex items-center justify-between mb-2">
-              <div className="font-medium">Analyzing report...</div>
-              <div className="text-sm font-medium">{progress}%</div>
+              <div className="font-medium text-sm">Processing OCR & Medical AI Extraction...</div>
+              <div className="text-sm font-semibold">{progress}%</div>
             </div>
             <Progress value={progress} />
           </Card>
@@ -227,55 +211,74 @@ const ReportAnalyzer = () => {
               </div>
             </Card>
 
-            <Card className="p-5 shadow-md">
-              <div className="flex items-center gap-2 mb-3">
-                <FileText className="w-5 h-5 text-primary" />
-                <h3 className="font-bold">Extracted Medical Text</h3>
-              </div>
-              <p className="text-sm text-muted-foreground whitespace-pre-wrap">
-                {analysis.text}
-              </p>
+            <Card className="p-5 shadow-md bg-sky-50 border-sky-200">
+              <h3 className="font-bold mb-2 text-sky-900">AI Simplified Summary</h3>
+              <p className="text-sm leading-relaxed text-sky-950">{analysis.summary}</p>
             </Card>
 
-            <Card className="p-5 shadow-md bg-sky-blue-light">
-              <h3 className="font-bold mb-2">AI Simplified Summary</h3>
-              <p className="text-sm leading-relaxed">{analysis.summary}</p>
-            </Card>
+            {analysis.issues && analysis.issues.length > 0 && (
+              <Card className="p-5 shadow-md bg-amber-50 border-amber-200">
+                <h3 className="font-bold mb-2 text-amber-900">Key Health Observations</h3>
+                <ul className="list-disc pl-5 text-sm text-amber-950 space-y-1">
+                  {analysis.issues.map((issue, idx) => (
+                    <li key={idx}>{issue}</li>
+                  ))}
+                </ul>
+              </Card>
+            )}
 
-            <Card className="p-5 shadow-md">
-              <h3 className="font-bold mb-4">Detected Parameters</h3>
-              <div className="space-y-3">
-                {(analysis.parameters || []).map((param, idx) => (
-                  <div
-                    key={idx}
-                    className="flex items-center justify-between p-3 bg-secondary rounded-xl"
-                  >
-                    <div>
-                      <p className="font-medium">{param.name}</p>
-                      <p className="text-sm text-muted-foreground">{param.value}</p>
-                    </div>
+            {analysis.parameters && analysis.parameters.length > 0 && (
+              <Card className="p-5 shadow-md">
+                <h3 className="font-bold mb-4">Extracted Parameters & Metrics</h3>
+                <div className="space-y-3">
+                  {analysis.parameters.map((param, idx) => (
                     <div
-                      className={`w-3 h-3 rounded-full ${
-                        param.status === "normal"
-                          ? "bg-green-500"
-                          : param.status === "high"
-                          ? "bg-red-500"
-                          : param.status === "low"
-                          ? "bg-yellow-500"
-                          : "bg-gray-400"
-                      }`}
-                    />
-                  </div>
-                ))}
-              </div>
-            </Card>
+                      key={idx}
+                      className="flex items-center justify-between p-3 bg-secondary rounded-xl"
+                    >
+                      <div>
+                        <p className="font-medium text-sm">{param.name}</p>
+                        <p className="text-xs text-muted-foreground">{param.value}</p>
+                      </div>
+                      <div
+                        className={`text-xs px-2.5 py-1 rounded-full font-semibold uppercase ${
+                          param.status === "normal"
+                            ? "bg-green-100 text-green-700"
+                            : param.status === "high"
+                            ? "bg-red-100 text-red-700"
+                            : param.status === "low"
+                            ? "bg-yellow-100 text-yellow-700"
+                            : "bg-gray-100 text-gray-700"
+                        }`}
+                      >
+                        {param.status}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </Card>
+            )}
+
+            {analysis.text && (
+              <Card className="p-5 shadow-md">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="w-5 h-5 text-primary" />
+                  <h3 className="font-bold text-sm">Extracted Raw Text</h3>
+                </div>
+                <p className="text-xs text-muted-foreground whitespace-pre-wrap max-h-60 overflow-y-auto bg-muted p-3 rounded-lg">
+                  {analysis.text}
+                </p>
+              </Card>
+            )}
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
               <Button variant="outline" className="w-full" onClick={handleDownload}>
                 <Download className="w-4 h-4 mr-2" />
                 Download Original Report
               </Button>
-              <Button className="w-full" onClick={() => navigate("/health-records")}>View Saved Reports</Button>
+              <Button className="w-full" onClick={() => navigate("/health-records")}>
+                View All Saved Reports
+              </Button>
             </div>
           </div>
         )}

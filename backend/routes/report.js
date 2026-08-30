@@ -1,11 +1,10 @@
-const express = require("express");
-const multer = require("multer");
-const { authenticate } = require("../middleware/auth");
-const Report = require("../modal/Report");
-const { analyzeReport } = require("../analyzer.cjs");
+import express from "express";
+import multer from "multer";
+import { authenticate } from "../middleware/auth.js";
+import Report from "../models/Report.js";
+import { analyzeReport } from "../services/ai.js";
 
 const router = express.Router();
-
 const upload = multer({ storage: multer.memoryStorage(), limits: { fileSize: 15 * 1024 * 1024 } });
 
 const sanitizeReport = (report) => {
@@ -15,46 +14,36 @@ const sanitizeReport = (report) => {
   return rest;
 };
 
-router.post(
-  "/analyze",
-  authenticate,
-  upload.single("file"),
-  async (req, res) => {
-    try {
-      if (!req.file || !req.file.buffer) {
-        return res.badRequest("No file uploaded");
-      }
-
-      const analysis = await analyzeReport(req.file.buffer, req.file.originalname);
-      const ownerType = req.auth.type === "doctor" ? "Doctor" : "Patient";
-      const provider = (process.env.ANALYZER_PROVIDER || "openai").toLowerCase();
-
-      const savedReport = await Report.create({
-        ownerId: req.user._id,
-        ownerType,
-        filename: req.file.originalname,
-        mimeType: req.file.mimetype,
-        fileSize: req.file.size,
-        fileData: req.file.buffer,
-        summary: analysis.summary,
-        text: analysis.text,
-        parameters: analysis.parameters,
-        issues: analysis.issues,
-        analysisProvider: provider.includes("gemini") ? "gemini" : "openai",
-      });
-
-      res.created(
-        {
-          report: sanitizeReport(savedReport),
-        },
-        "Report analyzed and saved"
-      );
-    } catch (error) {
-      console.error("Report analysis error", error);
-      res.serverError("Failed to analyze report", [error.message]);
+router.post("/analyze", authenticate, upload.single("file"), async (req, res) => {
+  try {
+    if (!req.file || !req.file.buffer) {
+      return res.badRequest("No file uploaded");
     }
+
+    const analysis = await analyzeReport(req.file.buffer, req.file.originalname);
+    const ownerType = req.auth.type === "doctor" ? "Doctor" : "Patient";
+    const provider = (process.env.ANALYZER_PROVIDER || "gemini").toLowerCase();
+
+    const savedReport = await Report.create({
+      ownerId: req.user._id,
+      ownerType,
+      filename: req.file.originalname,
+      mimeType: req.file.mimetype,
+      fileSize: req.file.size,
+      fileData: req.file.buffer,
+      summary: analysis.summary,
+      text: analysis.text,
+      parameters: analysis.parameters,
+      issues: analysis.issues,
+      analysisProvider: provider.includes("gemini") ? "gemini" : "openai",
+    });
+
+    res.created({ report: sanitizeReport(savedReport) }, "Report analyzed and saved");
+  } catch (error) {
+    console.error("Report analysis error", error);
+    res.serverError("Failed to analyze report", [error.message]);
   }
-);
+});
 
 router.get("/", authenticate, async (req, res) => {
   try {
@@ -109,5 +98,4 @@ router.delete("/:id", authenticate, async (req, res) => {
   }
 });
 
-module.exports = router;
-
+export default router;

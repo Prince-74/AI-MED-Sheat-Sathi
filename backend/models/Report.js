@@ -1,4 +1,4 @@
-const mongoose = require("mongoose");
+import mongoose from "mongoose";
 
 const parameterSchema = new mongoose.Schema({
   name: String,
@@ -28,4 +28,5 @@ const reportSchema = new mongoose.Schema(
   { collection: "reports" }
 );
 
-module.exports = mongoose.model("Report", reportSchema);
+const Report = mongoose.model("Report", reportSchema);
+export default Report;

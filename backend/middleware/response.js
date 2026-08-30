@@ -1,4 +1,4 @@
-module.exports = (req, res, next) => {
+const response = (req, res, next) => {
   res.ok = (data = {}, message = "OK", meta = {}) =>
     res.status(200).json({ success: true, message, data, meta });
 
@@ -22,3 +22,5 @@ module.exports = (req, res, next) => {
 
   next();
 };
+
+export default response;

@@ -1,9 +1,9 @@
-const express = require("express");
-const { query, body } = require("express-validator");
-const validate = require("../middleware/validate");
-const { authenticate, requireRole } = require("../middleware/auth");
-const Doctor = require("../modal/Doctor");
-const Appointment = require("../modal/Appointment");
+import express from "express";
+import { query, body } from "express-validator";
+import validate from "../middleware/validate.js";
+import { authenticate, requireRole } from "../middleware/auth.js";
+import Doctor from "../models/Doctor.js";
+import Appointment from "../models/Appointment.js";
 
 const router = express.Router();
 
@@ -16,9 +16,7 @@ router.get(
     query("category").optional().isString(),
     query("minFees").optional().isInt({ min: 0 }),
     query("maxFees").optional().isInt({ min: 0 }),
-    query("sortBy")
-      .optional()
-      .isIn(["fees", "experience", "name", "createdAt"]),
+    query("sortBy").optional().isIn(["fees", "experience", "name", "createdAt"]),
     query("sortOrder").optional().isIn(["asc", "desc"]),
     query("page").optional().isInt({ min: 1 }),
     query("limit").optional().isInt({ min: 1, max: 100 }),
@@ -40,12 +38,12 @@ router.get(
       } = req.query;
 
       const filter = { isVerified: true };
-      if (specialization)
-        filter.specialization = {
-          $regex: `^${specialization}$`,
-          $options: "i",
-        };
-      if (city) filter["hospitalInfo.city"] = { $regex: city, $options: "i" };
+      if (specialization) {
+        filter.specialization = { $regex: `^${specialization}$`, $options: "i" };
+      }
+      if (city) {
+        filter["hospitalInfo.city"] = { $regex: city, $options: "i" };
+      }
       if (category) {
         filter.category = category;
       }
@@ -88,13 +86,17 @@ router.get(
   }
 );
 
-//Get the profile of doctor
+// Profile of logged-in doctor
 router.get("/me", authenticate, requireRole("doctor"), async (req, res) => {
-  const doc = await Doctor.findById(req.user._id).select("-password -googleId");
-  res.ok(doc, "Profile fetched");
+  try {
+    const doc = await Doctor.findById(req.user._id).select("-password -googleId");
+    res.ok(doc, "Profile fetched");
+  } catch (error) {
+    res.serverError("Failed to fetch profile", [error.message]);
+  }
 });
 
-//update doctor profile
+// Update doctor profile / onboarding
 router.put(
   "/onboarding/update",
   authenticate,
@@ -111,152 +113,171 @@ router.put(
     body("availabilityRange.startDate").optional().isISO8601(),
     body("availabilityRange.endDate").optional().isISO8601(),
     body("availabilityRange.excludedWeekdays").optional().isArray(),
-    body("dailyTimeRanges").isArray({ min: 1 }),
-    body("dailyTimeRanges.*.start").isString(),
-    body("dailyTimeRanges.*.end").isString(),
+    body("dailyTimeRanges").optional().isArray(),
+    body("dailyTimeRanges.*.start").optional().isString(),
+    body("dailyTimeRanges.*.end").optional().isString(),
     body("slotDurationMinutes").optional().isInt({ min: 5, max: 180 }),
   ],
   validate,
   async (req, res) => {
     try {
-      const updated = { ...req.body };
-      delete updated.password;
-      updated.isVerified = true; //Mark profile as verified on update
-      const doc = await Doctor.findByIdAndUpdate(req.user._id, updated, {
+      const allowedFields = [
+        "name",
+        "specialization",
+        "qualification",
+        "category",
+        "experience",
+        "about",
+        "fees",
+        "hospitalInfo",
+        "availabilityRange",
+        "dailyTimeRanges",
+        "slotDurationMinutes",
+        "profileImage",
+      ];
+
+      const updatePayload = {};
+      for (const field of allowedFields) {
+        if (req.body[field] !== undefined) {
+          updatePayload[field] = req.body[field];
+        }
+      }
+
+      const doc = await Doctor.findByIdAndUpdate(req.auth.id, updatePayload, {
         new: true,
       }).select("-password -googleId");
-      res.ok(doc, "Profile updated");
-    } catch (error) {
-      res.serverError("updated failed", [error.message]);
-    }
-  }
-);
 
-//doctor dashboard
-router.get(
-  "/dashboard",
-  authenticate,
-  requireRole("doctor"),
-  async (req, res) => {
-    try {
-      const doctorId = req.auth.id;
-      const now = new Date();
-
-      //Proper date range calculation
-      const startOfDay = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        0,
-        0,
-        0,
-        0
-      );
-      const endOfDay = new Date(
-        now.getFullYear(),
-        now.getMonth(),
-        now.getDate(),
-        23,
-        59,
-        59,
-        999
-      );
-
-      const doctor = await Doctor.findById(doctorId)
-        .select("-password -googleId")
-        .lean();
-
-      if (!doctor) {
+      if (!doc) {
         return res.notFound("Doctor not found");
       }
 
-      //Today's appointment with full population
-      const todayAppointments = await Appointment.find({
-        doctorId,
-        slotStartIso: { $gte: startOfDay, $lte: endOfDay },
-        status: { $ne: "Cancelled" },
-      })
-        .populate("patientId", "name profileImage age email phone")
-        .populate("doctorId", "name fees profileImage specialization")
-        .sort({ slotStartIso: 1 });
-
-      //upcoming appointment with full population
-      const upcomingAppointments = await Appointment.find({
-        doctorId,
-        slotStartIso: { $gt: endOfDay },
-        status: { $ne: "Cancelled" },
-      })
-        .populate("patientId", "name profileImage age email phone")
-        .populate("doctorId", "name fees profileImage specialization")
-        .sort({ slotStartIso: 1 })
-        .limit(5);
-
-      const uniquePatientIds = await Appointment.distinct("patientId", {
-        doctorId,
-      });
-      const totalPatients = uniquePatientIds.length;
-
-      const completedAppointmentCount = await Appointment.countDocuments({
-        doctorId,
-        status: "Completed",
-      });
-
-      const totalAppointment = await Appointment.find({
-        doctorId,
-        status: "Completed",
-      });
-
-      const totalRevenue = totalAppointment.reduce(
-        (sum, apt) => sum + (apt.fees || doctor.fees || 0),
-        0
-      );
-
-      const dashboardData = {
-        user: {
-          name: doctor.name,
-          fees: doctor.fees,
-          profileImage: doctor.profileImage,
-          specialization: doctor.specialization,
-          hospitalInfo: doctor.hospitalInfo,
-        },
-        stats: {
-          totalPatients,
-          todayAppointments: todayAppointments.length,
-          totalRevenue,
-          completedAppointments:completedAppointmentCount,
-          averageRating: 4.8,
-        },
-        todayAppointments,
-        upcomingAppointments,
-        performance: {
-          pateintSatisfaction: 4.8,
-          completionRate: 98,
-          responseTime: "< 2min",
-        },
-      };
-
-      res.ok(dashboardData,'Dashboard data retrived')
+      res.ok(doc, "Doctor profile updated successfully");
     } catch (error) {
-      console.error("Dashboard error", error);
-      res.serverError("failed to fetch doctor dashboard", [error.message]);
+      res.serverError("Profile update failed", [error.message]);
     }
   }
 );
 
-router.get("/:doctorId", validate, async (req, res) => {
+// Doctor dashboard metrics
+router.get("/dashboard", authenticate, requireRole("doctor"), async (req, res) => {
+  try {
+    const doctorId = req.auth.id;
+    const now = new Date();
+
+    const startOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+    const endOfDay = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+
+    const doctor = await Doctor.findById(doctorId).select("-password -googleId").lean();
+    if (!doctor) {
+      return res.notFound("Doctor not found");
+    }
+
+    const activeStatuses = ["CONFIRMED", "UPCOMING", "IN_PROGRESS", "Scheduled"];
+
+    // 1. Pending appointment requests requiring doctor approval
+    const pendingAppointments = await Appointment.find({
+      doctorId,
+      status: "PENDING",
+    })
+      .populate("patientId", "name profileImage age email phone dob")
+      .sort({ slotStartIso: 1 });
+
+    // 2. Today's confirmed/active appointments
+    const todayAppointments = await Appointment.find({
+      doctorId,
+      slotStartIso: { $gte: startOfDay.toISOString(), $lte: endOfDay.toISOString() },
+      status: { $in: activeStatuses },
+    })
+      .populate("patientId", "name profileImage age email phone dob")
+      .populate("doctorId", "name fees profileImage specialization")
+      .sort({ slotStartIso: 1 });
+
+    // 3. Upcoming confirmed appointments beyond today
+    const upcomingAppointments = await Appointment.find({
+      doctorId,
+      slotStartIso: { $gt: endOfDay.toISOString() },
+      status: { $in: activeStatuses },
+    })
+      .populate("patientId", "name profileImage age email phone dob")
+      .populate("doctorId", "name fees profileImage specialization")
+      .sort({ slotStartIso: 1 })
+      .limit(10);
+
+    // 4. Completed consultations
+    const completedAppointments = await Appointment.find({
+      doctorId,
+      status: { $in: ["COMPLETED", "Completed"] },
+    })
+      .populate("patientId", "name profileImage age email phone")
+      .sort({ completedAt: -1 })
+      .limit(10);
+
+    const uniquePatientIds = await Appointment.distinct("patientId", { doctorId });
+    const totalPatients = uniquePatientIds.length;
+
+    const completedAppointmentCount = await Appointment.countDocuments({
+      doctorId,
+      status: { $in: ["COMPLETED", "Completed"] },
+    });
+
+    const allCompletedForRevenue = await Appointment.find({
+      doctorId,
+      status: { $in: ["COMPLETED", "Completed"] },
+    }).select("consultationFees totalAmount");
+
+    const totalRevenue = allCompletedForRevenue.reduce(
+      (sum, apt) => sum + Number(apt.totalAmount ?? apt.consultationFees ?? doctor.fees ?? 0),
+      0
+    );
+
+    const dashboardData = {
+      user: {
+        name: doctor.name,
+        fees: doctor.fees,
+        profileImage: doctor.profileImage,
+        specialization: doctor.specialization,
+        hospitalInfo: doctor.hospitalInfo,
+        dailyTimeRanges: doctor.dailyTimeRanges,
+        slotDurationMinutes: doctor.slotDurationMinutes,
+      },
+      stats: {
+        totalPatients,
+        todayAppointments: todayAppointments.length,
+        pendingCount: pendingAppointments.length,
+        totalRevenue,
+        completedAppointments: completedAppointmentCount,
+        averageRating: 4.9,
+      },
+      pendingAppointments,
+      todayAppointments,
+      upcomingAppointments,
+      recentCompleted: completedAppointments,
+      performance: {
+        pateintSatisfaction: 4.9,
+        completionRate: "99%",
+        responseTime: "< 2min",
+      },
+    };
+
+    res.ok(dashboardData, "Doctor dashboard data retrieved successfully");
+  } catch (error) {
+    console.error("Dashboard error:", error);
+    res.serverError("Failed to fetch doctor dashboard", [error.message]);
+  }
+});
+
+router.get("/:doctorId", async (req, res) => {
   try {
     const { doctorId } = req.params;
-    const doctor = await Doctor.findById(doctorId)
-      .select("-password -googleId")
-      .lean();
+    const doctor = await Doctor.findById(doctorId).select("-password -googleId").lean();
 
     if (!doctor) {
       return res.notFound("Doctor not found");
     }
-    res.ok(doctor, "doctor details fetched successfully");
+    res.ok(doctor, "Doctor details fetched successfully");
   } catch (error) {
     res.serverError("Fetching doctor failed", [error.message]);
   }
 });
 
-module.exports = router;
+export default router;

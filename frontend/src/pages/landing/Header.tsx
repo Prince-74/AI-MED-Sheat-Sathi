@@ -17,7 +17,7 @@ const Header: React.FC<HeaderProps> = ({ showDashboardNav }) => {
         <nav className="flex space-x-6 text-sm text-gray-700">
           <a href="/doctor/dashboard" className="hover:text-blue-600">Dashboard</a>
           <a href="/doctor/appointments" className="hover:text-blue-600">Appointments</a>
-          <a href="/doctor/profile" className="hover:text-blue-600">Profile</a>
+          <a href="/profile" className="hover:text-blue-600">Profile</a>
         </nav>
       )}
     </header>

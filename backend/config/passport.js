@@ -1,19 +1,23 @@
-const passport = require("passport");
-const GoogleStrategy = require("passport-google-oauth20").Strategy;
-const Patient = require("../modal/Patient");
-const Doctor = require("../modal/Doctor");
+import passport from "passport";
+import { Strategy as GoogleStrategy } from "passport-google-oauth20";
+import Patient from "../models/Patient.js";
+import Doctor from "../models/Doctor.js";
+import "dotenv/config";
 
-require("dotenv").config();
+const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
+const googleCallbackUrl = process.env.GOOGLE_CALLBACK_URL || process.env.VITE_GOOGLE_CALLBACK_URL || "http://localhost:5000/api/auth/google/callback";
 
-passport.use(
-  "google",
-  new GoogleStrategy(
-    {
-      clientID: process.env.GOOGLE_CLIENT_ID,
-      clientSecret: process.env.GOOGLE_CLIENT_SECRET,
-      callbackURL: process.env.GOOGLE_CALLBACK_URL,
-      passReqToCallback: true,
-    },
+if (googleClientId && googleClientSecret) {
+  passport.use(
+    "google",
+    new GoogleStrategy(
+      {
+        clientID: googleClientId,
+        clientSecret: googleClientSecret,
+        callbackURL: googleCallbackUrl,
+        passReqToCallback: true,
+      },
 
     async (req, accessToken, refreshToken, profile, done) => {
       try {
@@ -68,6 +72,8 @@ passport.use(
     }
   )
 );
+} else {
+  console.log("ℹ️  Google OAuth credentials not provided; Google login will be disabled.");
+}
 
-
-module.exports = passport;
+export default passport;

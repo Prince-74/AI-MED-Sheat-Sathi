@@ -1,129 +1,103 @@
-const express = require("express");
-const Appointment = require("../modal/Appointment");
-const { authenticate, requireRole } = require("../middleware/auth");
-const { query, body } = require("express-validator");
-const validate = require("../middleware/validate");
+import express from "express";
+import { query, body, param } from "express-validator";
+import { authenticate, requireRole } from "../middleware/auth.js";
+import validate from "../middleware/validate.js";
+import Appointment, { APPOINTMENT_STATUS } from "../models/Appointment.js";
+import {
+  generateDoctorAvailability,
+  bookAppointmentSafe,
+  transitionAppointmentStatus,
+  AppointmentError,
+} from "../services/appointmentEngine.js";
 
 const router = express.Router();
 
-//Doctor's appointment
+// Helper to handle appointment engine errors uniformly
+function handleEngineError(res, error, fallbackMessage = "Appointment operation failed") {
+  if (error instanceof AppointmentError) {
+    return res.status(error.statusCode).json({
+      success: false,
+      error: {
+        code: error.code,
+        message: error.message,
+      },
+      message: error.message,
+    });
+  }
+  console.error("Appointment unexpected error:", error);
+  return res.serverError(fallbackMessage, [error.message]);
+}
+
+/**
+ * 1. Authoritative Backend Slot Availability
+ * GET /api/appointment/availability/:doctorId?date=YYYY-MM-DD
+ */
 router.get(
-  "/doctor",
-  authenticate,
-  requireRole("doctor"),
+  "/availability/:doctorId",
   [
-    query("status").optional().isArray().withMessage("Status can be an array"),
-    query("status.*")
-      .optional()
-      .isString()
-      .withMessage("Each status must be an string"),
+    param("doctorId").isMongoId().withMessage("Valid doctor ID is required"),
+    query("date").optional().isString(),
   ],
   validate,
-
   async (req, res) => {
     try {
-      const { status } = req.query;
-      const filter = { doctorId: req.auth.id };
+      const { doctorId } = req.params;
+      const dateString = req.query.date || new Date().toISOString().slice(0, 10);
 
-      if (status) {
-        const statusArray = Array.isArray(status) ? status : [status];
-        filter.status = { $in: statusArray };
-      }
+      const availability = await generateDoctorAvailability({
+        doctorId,
+        dateString,
+      });
 
-      const appointment = await Appointment.find(filter)
-        .populate("patientId", "name email phone dob age profileImage")
-        .populate("doctorId", "name fees phone specialization profileImage hospitalInfo")
-        .sort({ slotStartIso: 1, slotEndIso: 1 });
-
-      res.ok(appointment, "Appointment fetched successfully");
+      res.ok(availability, "Doctor availability retrieved successfully");
     } catch (error) {
-      console.error("Doctor appointment fetch error", error);
-      res, serverError("Failed to fetch appointment", [error.message]);
+      handleEngineError(res, error, "Failed to retrieve doctor availability");
     }
   }
 );
 
-//patient appointmnet
-router.get(
-  "/patient",
-  authenticate,
-  requireRole("patient"),
-  [
-    query("status").optional().isArray().withMessage("Status can be an array"),
-    query("status.*")
-      .optional()
-      .isString()
-      .withMessage("Each status must be an string"),
-  ],
-  validate,
-
-  async (req, res) => {
-    try {
-      const { status } = req.query;
-      const filter = { patientId: req.auth.id };
-
-      if (status) {
-        const statusArray = Array.isArray(status) ? status : [status];
-        filter.status = { $in: statusArray };
-      }
-      const appointment = await Appointment.find(filter)
-        .populate(
-          "doctorId",
-          "name fees phone specialization hospitalInfo profileImage"
-        )
-        .populate("patientId", "name email profileImage")
-        .sort({ slotStartIso: 1, slotEndIso: 1 });
-
-      res.ok(appointment, "Appointment fetched successfully");
-    } catch (error) {
-      console.error("Patient appointment fetch error", error);
-      res, serverError("Failed to fetch appointment", [error.message]);
-    }
-  }
-);
-
-//Get booked slot for doctor on specific date
+/**
+ * 2. Booked slots legacy endpoint for backward compatibility
+ * GET /api/appointment/booked-slots/:doctorId/:date
+ */
 router.get("/booked-slots/:doctorId/:date", async (req, res) => {
   try {
     const { doctorId, date } = req.params;
-    const startDay = new Date(date);
-    startDay.setHours(0, 0, 0, 0);
-    const endOfDay = new Date(date);
-    endOfDay.setHours(23, 59, 59, 999);
+    const datePrefix = String(date).slice(0, 10);
 
-    const bookedAppointment = await Appointment.find({
+    const bookedAppointments = await Appointment.find({
       doctorId,
-      slotStartIso: { $gte: startDay, $lte: endOfDay },
-      status: { $ne: "Cancelled" },
+      dateString: datePrefix,
+      status: { $in: ["PENDING", "CONFIRMED", "UPCOMING", "IN_PROGRESS", "Scheduled"] },
     }).select("slotStartIso");
 
-    const bookedSlot = bookedAppointment.map((apt) => apt.slotStartIso);
-
-    res.ok(bookedSlot, "Booked slot retrieved");
+    const bookedSlots = bookedAppointments.map((apt) => apt.slotStartIso);
+    res.ok(bookedSlots, "Booked slots retrieved");
   } catch (error) {
-    res, serverError("Failed to fetch booked slot", [error.message]);
+    handleEngineError(res, error, "Failed to fetch booked slots");
   }
 });
 
-router.post("/book", authenticate, requireRole("patient"), [
-  body("doctorId").isMongoId().withMessage("valid doctor ID is required"),
-  body("slotStartIso").isISO8601().withMessage("valid start time is required"),
-  body("slotEndIso").isISO8601().withMessage("valid end time is required"),
-  body("consultationType")
-    .isIn(["Video Consultation", "Voice Call"])
-    .withMessage("valid consultation type required"),
-  body("symptoms")
-    .isString()
-    .trim()
-    .withMessage("symptoms decsription is required (min 10 char)"),
-  body("consultationFees")
-    .isNumeric()
-    .withMessage("consultationFees is required"),
-  body("platformFees").isNumeric().withMessage("platformFees is required"),
-  body("totalAmount").isNumeric().withMessage("totalAmount is required"),
-  ,
+/**
+ * 3. Book Appointment (Concurrency-Safe, Auth-derived Patient)
+ * POST /api/appointment/book
+ */
+router.post(
+  "/book",
+  authenticate,
+  requireRole("patient"),
+  [
+    body("doctorId").isMongoId().withMessage("Valid doctor ID is required"),
+    body("slotStartIso").notEmpty().withMessage("Valid start time (slotStartIso) is required"),
+    body("slotEndIso").notEmpty().withMessage("Valid end time (slotEndIso) is required"),
+    body("consultationType").optional().isString(),
+    body("symptoms").optional().isString(),
+    body("date").optional().isString(),
+    body("consultationFees").optional().isNumeric(),
+    body("platformFees").optional().isNumeric(),
+    body("totalAmount").optional().isNumeric(),
+  ],
   validate,
-
   async (req, res) => {
     try {
       const {
@@ -138,177 +112,385 @@ router.post("/book", authenticate, requireRole("patient"), [
         totalAmount,
       } = req.body;
 
-      const confictingAppointment = await Appointment.findOne({
+      // Patient identity comes directly from authenticated session
+      const patientId = req.auth.id;
+
+      const appointment = await bookAppointmentSafe({
         doctorId,
-        status: { $in: ["Scheduled", "In Progress"] },
-        $or: [
-          {
-            slotStartIso: { $lt: new Date(slotEndIso) },
-            slotEndIso: { $gt: new Date(slotStartIso) },
-          },
-        ],
-      });
-
-      if (confictingAppointment) {
-        return res.forbidden("This time slot is alredy booked");
-      }
-
-      //Generate unique roomId
-      const zegoRoomId = `room_${Date.now()}_${Math.random()
-        .toString(36)
-        .substr(2, 9)}`;
-
-      const appointment = new Appointment({
-        doctorId,
-        patientId: req.auth.id,
-        date: new Date(date),
-        slotStartIso: new Date(slotStartIso),
-        slotEndIso: new Date(slotEndIso),
+        patientId,
+        slotStartIso,
+        slotEndIso,
+        date,
         consultationType,
         symptoms,
-        zegoRoomId,
-        status: "Scheduled",
         consultationFees,
         platformFees,
         totalAmount,
-        paymentStatus: "Pending",
-        payoutStatus: "Pending",
       });
 
-      await appointment.save();
+      // Broadcast real-time notification to doctor room
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`doctor_${doctorId}`).emit("appointment_created", appointment);
+      }
 
-      await appointment.populate(
-        "doctorId",
-        "name fees phone specialization hospitalInfo profileImage"
-      );
-      await appointment.populate("patientId", "name email");
-
-      res.created(appointment, "Appointment booked successfully");
+      res.created({ appointment }, "Appointment booked successfully");
     } catch (error) {
-      console.error("Book appointment error", error);
-      res, serverError("Failed to book appointment", [error.message]);
+      handleEngineError(res, error, "Failed to book appointment");
     }
-  },
-]);
+  }
+);
 
-//Join
+/**
+ * 4. Doctor Appointment List (Authorized Doctor Only)
+ * GET /api/appointment/doctor
+ */
+router.get(
+  "/doctor",
+  authenticate,
+  requireRole("doctor"),
+  [
+    query("status").optional().customSanitizer((val) => (Array.isArray(val) ? val : [val])),
+    query("date").optional().isString(),
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const doctorId = req.auth.id;
+      const { status, date, page = 1, limit = 50 } = req.query;
+
+      const filter = { doctorId };
+
+      if (status) {
+        const statusArray = Array.isArray(status) ? status : [status];
+        // Support legacy 'Scheduled' when filtering for CONFIRMED
+        if (statusArray.includes("CONFIRMED") && !statusArray.includes("Scheduled")) {
+          statusArray.push("Scheduled");
+        }
+        filter.status = { $in: statusArray };
+      }
+
+      if (date) {
+        filter.dateString = String(date).slice(0, 10);
+      }
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const [appointments, total] = await Promise.all([
+        Appointment.find(filter)
+          .populate("patientId", "name email phone dob age profileImage")
+          .populate("doctorId", "name fees phone specialization profileImage hospitalInfo")
+          .sort({ slotStartIso: 1 })
+          .skip(skip)
+          .limit(Number(limit)),
+        Appointment.countDocuments(filter),
+      ]);
+
+      res.ok(appointments, "Doctor appointments fetched successfully", {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+      });
+    } catch (error) {
+      handleEngineError(res, error, "Failed to fetch doctor appointments");
+    }
+  }
+);
+
+/**
+ * 5. Patient Appointment List (Authorized Patient Only)
+ * GET /api/appointment/patient
+ */
+router.get(
+  "/patient",
+  authenticate,
+  requireRole("patient"),
+  [
+    query("status").optional().customSanitizer((val) => (Array.isArray(val) ? val : [val])),
+    query("page").optional().isInt({ min: 1 }),
+    query("limit").optional().isInt({ min: 1, max: 100 }),
+  ],
+  validate,
+  async (req, res) => {
+    try {
+      const patientId = req.auth.id;
+      const { status, page = 1, limit = 50 } = req.query;
+
+      const filter = { patientId };
+
+      if (status) {
+        const statusArray = Array.isArray(status) ? status : [status];
+        if (statusArray.includes("CONFIRMED") && !statusArray.includes("Scheduled")) {
+          statusArray.push("Scheduled");
+        }
+        filter.status = { $in: statusArray };
+      }
+
+      const skip = (Number(page) - 1) * Number(limit);
+
+      const [appointments, total] = await Promise.all([
+        Appointment.find(filter)
+          .populate("doctorId", "name fees phone specialization hospitalInfo profileImage")
+          .populate("patientId", "name email profileImage")
+          .sort({ slotStartIso: -1 })
+          .skip(skip)
+          .limit(Number(limit)),
+        Appointment.countDocuments(filter),
+      ]);
+
+      res.ok(appointments, "Patient appointments fetched successfully", {
+        page: Number(page),
+        limit: Number(limit),
+        total,
+      });
+    } catch (error) {
+      handleEngineError(res, error, "Failed to fetch patient appointments");
+    }
+  }
+);
+
+/**
+ * 6. Doctor Accept Appointment (PENDING -> CONFIRMED)
+ * PUT /api/appointment/:id/accept
+ */
+router.put(
+  "/:id/accept",
+  authenticate,
+  requireRole("doctor"),
+  async (req, res) => {
+    try {
+      const appointment = await transitionAppointmentStatus({
+        appointmentId: req.params.id,
+        targetStatus: APPOINTMENT_STATUS.CONFIRMED,
+        actorRole: "doctor",
+        actorId: req.auth.id,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`appointment_${appointment._id}`).emit("status_updated", { status: APPOINTMENT_STATUS.CONFIRMED });
+      }
+
+      res.ok(appointment, "Appointment confirmed successfully");
+    } catch (error) {
+      handleEngineError(res, error, "Failed to accept appointment");
+    }
+  }
+);
+
+/**
+ * 7. Doctor Reject Appointment (PENDING -> REJECTED)
+ * PUT /api/appointment/:id/reject
+ */
+router.put(
+  "/:id/reject",
+  authenticate,
+  requireRole("doctor"),
+  [body("reason").optional().isString()],
+  validate,
+  async (req, res) => {
+    try {
+      const { reason } = req.body;
+      const appointment = await transitionAppointmentStatus({
+        appointmentId: req.params.id,
+        targetStatus: APPOINTMENT_STATUS.REJECTED,
+        actorRole: "doctor",
+        actorId: req.auth.id,
+        reason,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`appointment_${appointment._id}`).emit("status_updated", { status: APPOINTMENT_STATUS.REJECTED, reason });
+      }
+
+      res.ok(appointment, "Appointment rejected");
+    } catch (error) {
+      handleEngineError(res, error, "Failed to reject appointment");
+    }
+  }
+);
+
+/**
+ * 8. Cancel Appointment (Patient or Doctor)
+ * PUT /api/appointment/:id/cancel
+ */
+router.put(
+  "/:id/cancel",
+  authenticate,
+  [body("reason").optional().isString()],
+  validate,
+  async (req, res) => {
+    try {
+      const { reason } = req.body;
+      const appointment = await transitionAppointmentStatus({
+        appointmentId: req.params.id,
+        targetStatus: APPOINTMENT_STATUS.CANCELLED,
+        actorRole: req.auth.type,
+        actorId: req.auth.id,
+        reason,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`appointment_${appointment._id}`).emit("status_updated", { status: APPOINTMENT_STATUS.CANCELLED, reason });
+      }
+
+      res.ok(appointment, "Appointment cancelled successfully");
+    } catch (error) {
+      handleEngineError(res, error, "Failed to cancel appointment");
+    }
+  }
+);
+
+/**
+ * 9. Update Status (Controlled State Machine)
+ * PUT /api/appointment/status/:id
+ */
+router.put(
+  "/status/:id",
+  authenticate,
+  [body("status").notEmpty().withMessage("Target status is required")],
+  validate,
+  async (req, res) => {
+    try {
+      const { status, reason } = req.body;
+      const appointment = await transitionAppointmentStatus({
+        appointmentId: req.params.id,
+        targetStatus: status,
+        actorRole: req.auth.type,
+        actorId: req.auth.id,
+        reason,
+      });
+
+      const io = req.app.get("io");
+      if (io) {
+        io.to(`appointment_${appointment._id}`).emit("status_updated", { status });
+      }
+
+      res.ok(appointment, "Appointment status updated successfully");
+    } catch (error) {
+      handleEngineError(res, error, "Failed to update appointment status");
+    }
+  }
+);
+
+/**
+ * 10. Join Consultation Room
+ * GET /api/appointment/join/:id
+ */
 router.get("/join/:id", authenticate, async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
-      .populate("patientId", "name ")
-      .populate("doctorId", "name");
+      .populate("patientId", "name email profileImage")
+      .populate("doctorId", "name specialization profileImage fees");
 
     if (!appointment) {
       return res.notFound("Appointment not found");
     }
 
-    appointment.status = "In Progress";
-    await appointment.save();
+    const userId = req.auth.id.toString();
+    const isParticipant =
+      appointment.patientId?._id?.toString() === userId ||
+      appointment.doctorId?._id?.toString() === userId;
+
+    if (!isParticipant) {
+      return res.forbidden("Access denied. You are not a participant in this consultation.");
+    }
+
+    if (appointment.status === "Scheduled" || appointment.status === APPOINTMENT_STATUS.CONFIRMED || appointment.status === APPOINTMENT_STATUS.UPCOMING) {
+      appointment.status = APPOINTMENT_STATUS.IN_PROGRESS;
+      appointment.startedAt = new Date();
+      await appointment.save();
+    }
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`appointment_${appointment._id}`).emit("call_status", { status: APPOINTMENT_STATUS.IN_PROGRESS });
+    }
 
     res.ok(
       { roomId: appointment.zegoRoomId, appointment },
       "Consultation joined successfully"
     );
   } catch (error) {
-    console.error("Join consultation error", error);
-    res, serverError("Failed to Join consultation", [error.message]);
+    handleEngineError(res, error, "Failed to join consultation");
   }
 });
 
-//End
+/**
+ * 11. End Consultation
+ * PUT /api/appointment/end/:id
+ */
 router.put("/end/:id", authenticate, async (req, res) => {
   try {
     const { prescription, notes } = req.body;
-    const appointment = await Appointment.findByIdAndUpdate(
-      req.params.id,
-      {
-        status: "Completed",
-        prescription,
-        notes,
-        updatedAt: new Date(),
-      },
-      { new: true }
-    ).populate("patientId doctorId");
+    const appointment = await Appointment.findById(req.params.id);
 
     if (!appointment) {
       return res.notFound("Appointment not found");
+    }
+
+    const userId = req.auth.id.toString();
+    const isParticipant =
+      appointment.patientId?.toString() === userId ||
+      appointment.doctorId?.toString() === userId;
+
+    if (!isParticipant) {
+      return res.forbidden("Access denied");
+    }
+
+    appointment.status = APPOINTMENT_STATUS.COMPLETED;
+    appointment.completedAt = new Date();
+    if (prescription) appointment.prescription = prescription;
+    if (notes) appointment.notes = notes;
+    await appointment.save();
+
+    await appointment.populate("patientId doctorId");
+
+    const io = req.app.get("io");
+    if (io) {
+      io.to(`appointment_${appointment._id}`).emit("call_status", {
+        status: APPOINTMENT_STATUS.COMPLETED,
+        prescription,
+        notes,
+      });
     }
 
     res.ok(appointment, "Consultation completed successfully");
   } catch (error) {
-    console.error("End consultation error", error);
-    res, serverError("Failed to End consultation", [error.message]);
+    handleEngineError(res, error, "Failed to end consultation");
   }
 });
 
-//update appointment status by doctor
-router.put(
-  "/status/:id",
-  authenticate,
-  requireRole("doctor"),
-  async (req, res) => {
-    try {
-      const { status } = req.body;
-      const appointment = await Appointment.findById(req.params.id).populate(
-        "patientId doctorId"
-      );
-
-      if (!appointment) {
-        return res.notFound("Appointment not found");
-      }
-
-      if (appointment.doctorId._id.toString() !== req.auth.id) {
-        return res.forbidden("Access denied");
-      }
-
-      appointment.status = status;
-      appointment.updatedAt = new Date();
-      await appointment.save();
-
-      res.ok(appointment, "Appointment status updated successfully");
-    } catch (error) {
-      console.error("updated Appointment status error", error);
-      res, serverError("Failed to updated Appointment status", [error.message]);
-    }
-  }
-);
-
-//Get single appointment by id
-
+/**
+ * 12. Get Single Appointment by ID (Strict Participant Isolation)
+ * GET /api/appointment/:id
+ */
 router.get("/:id", authenticate, async (req, res) => {
   try {
     const appointment = await Appointment.findById(req.params.id)
       .populate("patientId", "name email phone dob age profileImage")
-      .populate(
-        "doctorId",
-        "name fees phone specialization hospitalInfo profileImage"
-      );
+      .populate("doctorId", "name fees phone specialization hospitalInfo profileImage");
 
     if (!appointment) {
       return res.notFound("Appointment not found");
     }
 
-    //check if user has access to this appointment
-    const userRole = req.auth.type;
-    if (
-      userRole === "doctor" &&
-      appointment.doctorId._id.toString() !== req.auth.id
-    ) {
-      return res.forbidden("Access denied");
-    }
+    const userId = req.auth.id.toString();
+    const isDoctor = appointment.doctorId?._id?.toString() === userId;
+    const isPatient = appointment.patientId?._id?.toString() === userId;
 
-    if (
-      userRole === "patient" &&
-      appointment.patientId._id.toString() !== req.auth.id
-    ) {
-      return res.forbidden("Access denied");
+    if (!isDoctor && !isPatient) {
+      return res.forbidden("Access denied. You are not authorized to view this appointment.");
     }
 
     res.ok({ appointment }, "Appointment fetched successfully");
   } catch (error) {
-    console.error("Get appointment error", error);
-    res, serverError("Failed to Get appointment", [error.message]);
+    handleEngineError(res, error, "Failed to get appointment");
   }
 });
 
-module.exports = router;
+export default router;

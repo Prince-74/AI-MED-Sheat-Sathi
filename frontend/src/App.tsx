@@ -18,6 +18,8 @@ import Bookings from "./pages/Bookings";
 import BookAppointment from "./pages/BookAppointment";
 import BookAppointmentDetails from "./pages/BookAppointmentDetails";
 import BookAppointmentPayment from "./pages/BookAppointmentPayment";
+import BookingConfirmation from "./pages/BookingConfirmation";
+import AppointmentDetails from "./pages/AppointmentDetails";
 import Profile from "./pages/Profile";
 import SymptomChecker from "./pages/SymptomChecker";
 import ReportAnalyzer from "./pages/ReportAnalyzer";
@@ -27,17 +29,21 @@ import NotFound from "./pages/NotFound";
 import PatientOnboarding from "./pages/Onboarding/PatientOnboarding";
 import DoctorOnboarding from "./pages/Onboarding/DoctorOnboarding";
 import DoctorDashboard from "./pages/Dashboard/DoctorDashboard";
+import DoctorAppointments from "./pages/Dashboard/DoctorAppointments";
+import VideoCall from "./pages/VideoCall";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import ErrorBoundary from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
 const App = () => (
-  <QueryClientProvider client={queryClient}>
-    <TooltipProvider>
-      <Toaster />
-      <Sonner />
-      <BrowserRouter>
-        <Routes>
+  <ErrorBoundary>
+    <QueryClientProvider client={queryClient}>
+      <TooltipProvider>
+        <Toaster />
+        <Sonner />
+        <BrowserRouter>
+          <Routes>
           <Route path="/" element={<Welcome />} />
           <Route path="/auth" element={<Auth />} />
           <Route path="/auth/success" element={<AuthSuccess />} />
@@ -65,6 +71,14 @@ const App = () => (
           <Route path="/book-appointment/:id" element={<BookAppointment />} />
           <Route path="/book-appointment/:id/details" element={<BookAppointmentDetails />} />
           <Route path="/book-appointment/:id/payment" element={<BookAppointmentPayment />} />
+          <Route
+            path="/booking-confirmation/:appointmentId"
+            element={
+              <ProtectedRoute allowedRoles={["patient"]}>
+                <BookingConfirmation />
+              </ProtectedRoute>
+            }
+          />
           <Route path="/explore" element={<Pharmacy />} />
           <Route path="/pharmacy" element={<Pharmacy />} />
           <Route
@@ -80,6 +94,22 @@ const App = () => (
             element={
               <ProtectedRoute allowedRoles={["patient"]}>
                 <Bookings />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/appointments/:id"
+            element={
+              <ProtectedRoute>
+                <AppointmentDetails />
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/doctor/appointments/:id"
+            element={
+              <ProtectedRoute allowedRoles={["doctor"]}>
+                <AppointmentDetails />
               </ProtectedRoute>
             }
           />
@@ -151,6 +181,24 @@ const App = () => (
               </ProtectedRoute>
             }
           />
+          <Route
+            path="/doctor/appointments"
+            element={
+              <ProtectedRoute allowedRoles={["doctor"]}>
+                <DoctorAppointments />
+              </ProtectedRoute>
+            }
+          />
+
+          {/* Video Consultation Route */}
+          <Route
+            path="/call/:appointmentId"
+            element={
+              <ProtectedRoute allowedRoles={["patient", "doctor"]}>
+                <VideoCall />
+              </ProtectedRoute>
+            }
+          />
 
           {/* Catch-all 404 */}
           <Route path="*" element={<NotFound />} />
@@ -158,6 +206,7 @@ const App = () => (
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
+  </ErrorBoundary>
 );
 
 export default App;

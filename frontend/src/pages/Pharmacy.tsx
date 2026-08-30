@@ -46,17 +46,14 @@ const Pharmacy = () => {
             <ArrowLeft className="w-6 h-6" />
           </button>
           <h1 className="text-2xl font-bold">Pharmacy</h1>
-          <button
-            onClick={() => navigate("/cart")}
-            className="w-12 h-12 bg-primary-foreground/20 rounded-full flex items-center justify-center relative"
-          >
+          <div className="w-12 h-12 bg-primary-foreground/20 rounded-full flex items-center justify-center cursor-not-allowed opacity-50 relative">
             <ShoppingCart className="w-6 h-6" />
             {cartItemCount > 0 && (
               <span className="absolute -top-1 -right-1 w-5 h-5 bg-accent text-xs font-bold rounded-full flex items-center justify-center">
                 {cartItemCount}
               </span>
             )}
-          </button>
+          </div>
         </div>
       </div>
 
