@@ -21,6 +21,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { formatSlotDate, formatSlotTimeSimple } from "@/lib/dateUtils";
+
 const BookAppointmentPayment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -41,6 +43,8 @@ const BookAppointmentPayment = () => {
 
   const { slot, slotEndIso, date, consultationType = "Video Consultation", symptoms } =
     (location.state as any) || {};
+
+  const doctorFee = currentDoctor?.fees !== undefined ? currentDoctor.fees : 500;
 
   // Step 1: Initiate Booking & Payment Order
   const handleInitiatePayment = async () => {
@@ -65,10 +69,10 @@ const BookAppointmentPayment = () => {
         slotEndIso: calculatedEndIso,
         consultationType,
         symptoms: symptoms || "",
-        date: date || startIso.slice(0, 10),
-        consultationFees: currentDoctor.fees || 0,
+        date: date || (startIso ? startIso.slice(0, 10) : ""),
+        consultationFees: doctorFee,
         platformFees: 0,
-        totalAmount: currentDoctor.fees || 0,
+        totalAmount: doctorFee,
       };
 
       const apt = await bookAppointment(payload);
@@ -154,7 +158,7 @@ const BookAppointmentPayment = () => {
             </div>
             <div className="pt-3 border-t text-sm font-semibold flex justify-between">
               <span>Consultation Fee</span>
-              <span className="text-accent font-bold">?{currentDoctor?.fees || 0}</span>
+              <span className="text-accent font-bold">₹{doctorFee}</span>
             </div>
           </Card>
         </div>
@@ -173,13 +177,7 @@ const BookAppointmentPayment = () => {
                   </span>
                   <span className="font-medium text-foreground">
                     {slot
-                      ? new Date(slot).toLocaleString(undefined, {
-                          weekday: "short",
-                          month: "short",
-                          day: "numeric",
-                          hour: "2-digit",
-                          minute: "2-digit",
-                        })
+                      ? `${formatSlotDate(date || slot)}, ${formatSlotTimeSimple(slot)}`
                       : "-"}
                   </span>
                 </div>
@@ -210,7 +208,7 @@ const BookAppointmentPayment = () => {
 
                 <div className="flex justify-between mt-3 border-t pt-3 text-sm font-bold">
                   <span>Total Amount Due</span>
-                  <span className="text-accent text-base">?{currentDoctor?.fees || 0}</span>
+                  <span className="text-accent text-base">₹{doctorFee}</span>
                 </div>
               </div>
 
@@ -231,7 +229,7 @@ const BookAppointmentPayment = () => {
                   disabled={processing || !slot}
                   className="bg-primary hover:bg-primary/90 text-white w-full sm:w-auto px-8"
                 >
-                  {processing ? "Preparing Payment..." : `Proceed to Payment (?${currentDoctor?.fees || 0})`}
+                  {processing ? "Preparing Payment..." : `Proceed to Payment (₹${doctorFee})`}
                 </Button>
               </div>
             </Card>

@@ -10,6 +10,8 @@ import { useAppointmentStore, Slot } from "@/store/appointmentStore";
 import { Video, Phone, Clock, AlertCircle } from "lucide-react";
 import { toast } from "sonner";
 
+import { formatLocalDate } from "@/lib/dateUtils";
+
 const BookAppointment = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -27,7 +29,7 @@ const BookAppointment = () => {
   // Load authoritative backend slot availability whenever selected doctor or date changes
   useEffect(() => {
     if (!currentDoctor || !selectedDate) return;
-    const dateString = selectedDate.toISOString().slice(0, 10);
+    const dateString = formatLocalDate(selectedDate);
     setSelectedSlot(null);
     fetchDoctorAvailability(currentDoctor._id, dateString);
   }, [currentDoctor, selectedDate, fetchDoctorAvailability]);
@@ -38,11 +40,13 @@ const BookAppointment = () => {
       return;
     }
 
+    const dateString = formatLocalDate(selectedDate);
+
     navigate(`/book-appointment/${currentDoctor._id}/details`, {
       state: {
         slot: selectedSlot.slotStartIso,
         slotEndIso: selectedSlot.slotEndIso,
-        date: selectedDate.toISOString().slice(0, 10),
+        date: dateString,
         consultationType,
       },
     });
@@ -72,7 +76,7 @@ const BookAppointment = () => {
 
               <div className="mt-4 w-full p-3.5 bg-secondary/50 rounded-xl space-y-1">
                 <div className="text-xs text-muted-foreground uppercase font-semibold">Consultation Fee</div>
-                <div className="text-xl font-bold text-accent">?{doctor?.fees || 0}</div>
+                <div className="text-xl font-bold text-accent">₹{doctor?.fees !== undefined ? doctor.fees : 500}</div>
                 <div className="text-xs text-muted-foreground">
                   {availability?.slotDuration || 30} mins session duration
                 </div>
@@ -167,7 +171,16 @@ const BookAppointment = () => {
                     </p>
                   </div>
                 ) : (
-                  <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-1">
+                  <>
+                    {bookableSlots.length === 0 && (
+                      <div className="mb-3 p-3 bg-amber-500/10 border border-amber-500/30 rounded-xl text-xs text-amber-700 dark:text-amber-300 flex items-center gap-2">
+                        <AlertCircle className="w-4 h-4 shrink-0 text-amber-600" />
+                        <span>
+                          All slots for this date have concluded or are fully booked. Please select tomorrow or another future date on the calendar.
+                        </span>
+                      </div>
+                    )}
+                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 max-h-72 overflow-y-auto pr-1">
                     {availableSlots.map((slot) => {
                       const isSelected = selectedSlot?.slotStartIso === slot.slotStartIso;
                       return (
@@ -193,7 +206,8 @@ const BookAppointment = () => {
                         </button>
                       );
                     })}
-                  </div>
+                    </div>
+                  </>
                 )}
 
                 <div className="mt-6 pt-4 border-t border-border flex justify-end">

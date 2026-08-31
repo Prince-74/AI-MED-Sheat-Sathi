@@ -32,17 +32,26 @@ import DoctorDashboard from "./pages/Dashboard/DoctorDashboard";
 import DoctorAppointments from "./pages/Dashboard/DoctorAppointments";
 import VideoCall from "./pages/VideoCall";
 import ProtectedRoute from "@/components/ProtectedRoute";
+import { useEffect } from "react";
+import { userAuthStore } from "@/store/authStore";
 import ErrorBoundary from "@/components/ErrorBoundary";
 
 const queryClient = new QueryClient();
 
-const App = () => (
-  <ErrorBoundary>
-    <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <Toaster />
-        <Sonner />
-        <BrowserRouter>
+const App = () => {
+  const initAuth = userAuthStore((state) => state.initAuth);
+
+  useEffect(() => {
+    initAuth().catch(() => {});
+  }, [initAuth]);
+
+  return (
+    <ErrorBoundary>
+      <QueryClientProvider client={queryClient}>
+        <TooltipProvider>
+          <Toaster />
+          <Sonner />
+          <BrowserRouter>
           <Routes>
           <Route path="/" element={<Welcome />} />
           <Route path="/auth" element={<Auth />} />
@@ -207,6 +216,7 @@ const App = () => (
     </TooltipProvider>
   </QueryClientProvider>
   </ErrorBoundary>
-);
+  );
+};
 
 export default App;

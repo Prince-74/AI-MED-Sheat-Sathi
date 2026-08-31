@@ -7,6 +7,8 @@ import AppointmentHeader from "@/components/AppointmentHeader";
 import { useDoctorStore } from "@/store/doctorStore";
 import { Calendar, Clock, Video, Phone, FileText } from "lucide-react";
 
+import { formatSlotDate, formatSlotTimeSimple } from "@/lib/dateUtils";
+
 const BookAppointmentDetails = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -33,6 +35,8 @@ const BookAppointmentDetails = () => {
     });
   };
 
+  const doctorFee = currentDoctor?.fees !== undefined ? currentDoctor.fees : 500;
+
   return (
     <div className="min-h-screen bg-background pb-24">
       <AppointmentHeader doctor={currentDoctor} step={2} />
@@ -54,7 +58,7 @@ const BookAppointmentDetails = () => {
 
             <div className="p-3 bg-secondary/50 rounded-xl">
               <div className="text-xs text-muted-foreground uppercase font-semibold">Fee per consultation</div>
-              <div className="text-lg font-bold text-accent">?{currentDoctor?.fees || 0}</div>
+              <div className="text-lg font-bold text-accent">₹{doctorFee}</div>
             </div>
           </Card>
         </div>
@@ -70,7 +74,7 @@ const BookAppointmentDetails = () => {
                 <div>
                   <div className="text-[11px] text-muted-foreground">Date</div>
                   <div className="text-xs font-semibold">
-                    {slot ? new Date(slot).toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" }) : "-"}
+                    {formatSlotDate(date || slot)}
                   </div>
                 </div>
               </div>
@@ -80,7 +84,7 @@ const BookAppointmentDetails = () => {
                 <div>
                   <div className="text-[11px] text-muted-foreground">Time</div>
                   <div className="text-xs font-semibold">
-                    {slot ? new Date(slot).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" }) : "-"}
+                    {slot ? formatSlotTimeSimple(slot) : "-"}
                   </div>
                 </div>
               </div>

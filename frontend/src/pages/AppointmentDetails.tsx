@@ -22,6 +22,8 @@ import {
 } from "lucide-react";
 import { toast } from "sonner";
 
+import { formatSlotDate, formatSlotTime } from "@/lib/dateUtils";
+
 const AppointmentDetails = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -221,14 +223,7 @@ const AppointmentDetails = () => {
                   <Calendar className="w-3.5 h-3.5 text-primary" /> Date
                 </span>
                 <span className="font-semibold text-foreground block text-sm">
-                  {appointment.slotStartIso
-                    ? new Date(appointment.slotStartIso).toLocaleDateString(undefined, {
-                        weekday: "short",
-                        month: "short",
-                        day: "numeric",
-                        year: "numeric",
-                      })
-                    : "-"}
+                  {formatSlotDate(appointment.dateString || appointment.slotStartIso)}
                 </span>
               </div>
 
@@ -237,12 +232,7 @@ const AppointmentDetails = () => {
                   <Clock className="w-3.5 h-3.5 text-primary" /> Time Slot
                 </span>
                 <span className="font-semibold text-foreground block text-sm">
-                  {appointment.slotStartIso
-                    ? new Date(appointment.slotStartIso).toLocaleTimeString([], {
-                        hour: "2-digit",
-                        minute: "2-digit",
-                      })
-                    : "-"}
+                  {formatSlotTime(appointment.slotStartIso, appointment.slotEndIso)}
                 </span>
               </div>
 

@@ -1,5 +1,7 @@
 import crypto from "crypto";
 
+export const DEFAULT_ZEGO_APP_ID = 1879308119;
+
 /**
  * Generates official Zego Token04 for WebRTC authentication.
  * Secrets must come from environment variables only.

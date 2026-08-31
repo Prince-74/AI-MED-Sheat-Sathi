@@ -4,9 +4,9 @@ import Patient from "../models/Patient.js";
 import Doctor from "../models/Doctor.js";
 import "dotenv/config";
 
-const googleClientId = process.env.GOOGLE_CLIENT_ID || process.env.VITE_GOOGLE_CLIENT_ID;
-const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET || process.env.VITE_GOOGLE_CLIENT_SECRET;
-const googleCallbackUrl = process.env.GOOGLE_CALLBACK_URL || process.env.VITE_GOOGLE_CALLBACK_URL || "http://localhost:5000/api/auth/google/callback";
+const googleClientId = process.env.GOOGLE_CLIENT_ID;
+const googleClientSecret = process.env.GOOGLE_CLIENT_SECRET;
+const googleCallbackUrl = process.env.GOOGLE_CALLBACK_URL || "http://localhost:5000/api/auth/google/callback";
 
 if (googleClientId && googleClientSecret) {
   passport.use(

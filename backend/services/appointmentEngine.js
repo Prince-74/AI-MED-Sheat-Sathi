@@ -127,7 +127,10 @@ export async function generateDoctorAvailability({ doctorId, dateString, current
 
   const timeRanges = (doctor.dailyTimeRanges && doctor.dailyTimeRanges.length > 0)
     ? doctor.dailyTimeRanges
-    : [{ start: "09:00", end: "17:00" }]; // Fallback standard working hours
+    : [
+        { start: "09:00", end: "13:00" },
+        { start: "14:00", end: "20:00" },
+      ]; // Fallback standard working hours
 
   const slotMinutes = doctor.slotDurationMinutes || 30;
 

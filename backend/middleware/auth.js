@@ -1,32 +1,51 @@
 import jwt from "jsonwebtoken";
 import Doctor from "../models/Doctor.js";
 import Patient from "../models/Patient.js";
+import { getJwtSecret } from "../services/auth/tokenService.js";
 
 export const authenticate = async (req, res, next) => {
   try {
     const header = req.headers.authorization || "";
-    const token = header.startsWith("Bearer ") ? header.slice(7) : null;
-    if (!token) return res.unauthorized("Missing token");
+    const token = header.startsWith("Bearer ") ? header.slice(7).trim() : null;
 
-    const decode = jwt.verify(token, process.env.JWT_SECRET);
-    req.auth = decode;
-
-    if (decode.type === "doctor") {
-      req.user = await Doctor.findById(decode.id);
-    } else if (decode.type === "patient") {
-      req.user = await Patient.findById(decode.id);
+    if (!token) {
+      return res.unauthorized("Authentication token required");
     }
 
-    if (!req.user) return res.unauthorized("Invalid user");
+    const secret = getJwtSecret();
+    const decoded = jwt.verify(token, secret);
+
+    if (!decoded || !decoded.id || !decoded.type) {
+      return res.unauthorized("Malformed authentication token");
+    }
+
+    req.auth = {
+      id: decoded.id.toString(),
+      type: decoded.type,
+    };
+
+    if (decoded.type === "doctor") {
+      req.user = await Doctor.findById(decoded.id).select("-password -googleId");
+    } else if (decoded.type === "patient") {
+      req.user = await Patient.findById(decoded.id).select("-password -googleId");
+    }
+
+    if (!req.user || req.user.isActive === false) {
+      return res.unauthorized("User account not found or deactivated");
+    }
+
     next();
   } catch (error) {
-    return res.unauthorized("Invalid or expired token");
+    if (error.name === "TokenExpiredError") {
+      return res.unauthorized("Token expired");
+    }
+    return res.unauthorized("Invalid or malformed token");
   }
 };
 
 export const requireRole = (role) => (req, res, next) => {
   if (!req.auth || req.auth.type !== role) {
-    return res.forbidden("Insufficient role permissions");
+    return res.forbidden(`Access denied: Requires ${role} role`);
   }
   next();
 };

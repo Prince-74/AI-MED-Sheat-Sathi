@@ -41,9 +41,9 @@ const doctorSchema = new mongoose.Schema({
   category: { type: [String], enum: healthcareCategoriesList, required: false },
 
   qualification: { type: String, required: false },
-  experience: { type: Number },
-  about: { type: String },
-  fees: { type: Number },
+  experience: { type: Number, default: 0, min: 0 },
+  about: { type: String, default: "" },
+  fees: { type: Number, default: 500, min: 0 },
 
   hospitalInfo: {
     name: String,
@@ -52,7 +52,13 @@ const doctorSchema = new mongoose.Schema({
   },
 
   availabilityRange: availabilityRangeSchema,
-  dailyTimeRanges: { type: [dailyTimeRangeSchema], default: [] },
+  dailyTimeRanges: {
+    type: [dailyTimeRangeSchema],
+    default: [
+      { start: "09:00", end: "13:00" },
+      { start: "14:00", end: "20:00" },
+    ],
+  },
   slotDurationMinutes: { type: Number, default: 30 },
 
   isVerified: { type: Boolean, default: false },

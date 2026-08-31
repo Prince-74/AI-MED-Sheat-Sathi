@@ -1,6 +1,16 @@
 import assert from "node:assert";
 import mongoose from "mongoose";
-import "dotenv/config";
+import dotenv from "dotenv";
+
+dotenv.config();
+dotenv.config({ path: "./backend/.env" });
+
+if (!process.env.ZEGO_APP_ID) {
+  process.env.ZEGO_APP_ID = "1879308119";
+}
+if (!process.env.ZEGO_SERVER_SECRET) {
+  process.env.ZEGO_SERVER_SECRET = "6bead71a81dc89b14db8c8fa9074ee2c";
+}
 
 import Doctor from "../models/Doctor.js";
 import Patient from "../models/Patient.js";

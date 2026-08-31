@@ -69,12 +69,12 @@ const VideoCall = () => {
         if (!mounted) return;
         const data = response.data as ConsultationTokenData;
         setTokenData(data);
-      } catch (err: unknown) {
+      } catch (err: any) {
         if (!mounted) return;
         const errMsg =
-          err instanceof Error
-            ? err.message
-            : "Failed to join consultation room";
+          err?.response?.data?.message ||
+          err?.message ||
+          "Failed to join consultation room";
         setError(errMsg);
         toast.error(errMsg);
       } finally {

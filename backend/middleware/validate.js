@@ -5,7 +5,9 @@ import { validationResult } from "express-validator";
 const validate = (req, res, next) => {
   const errors = validationResult(req);
   if (!errors.isEmpty()) {
-    return res.badRequest("Validation Error", errors.array());
+    const errorList = errors.array();
+    const specificMessage = errorList.map((e) => e.msg).filter(Boolean).join(", ") || "Validation Error";
+    return res.badRequest(specificMessage, errorList);
   }
   next();
 };
